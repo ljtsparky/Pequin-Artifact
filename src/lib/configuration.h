@@ -83,10 +83,23 @@ public:
     int replicaHost(int group, int idx) const;
     bool IsLowestGroupOnHost(int group, int idx) const;
 
+    // --- Heterogeneous shard membership support ---
+    // Per-group replica count (may differ across groups).
+    int GroupN(int group) const;
+    // Per-group fault tolerance (may differ across groups).
+    int GroupF(int group) const;
+    // Compute a globally unique replica ID from (group, idx) using
+    // cumulative offsets so that groups with different sizes are handled.
+    uint64_t GlobalReplicaId(int group, int idx) const;
+    // Inverse of GlobalReplicaId: recover (group, idx) from a global ID.
+    std::pair<int,int> GroupAndIdx(uint64_t globalId) const;
+    // Returns true when groups have differing replica counts or fault params.
+    bool IsHeterogeneous() const;
+
 public:
     int g;                      // number of groups
-    int n;                      // number of replicas per group
-    int f;                      // number of failures tolerated (assume homogeneous across groups)
+    int n;                      // number of replicas per group (legacy; first group's n when heterogeneous)
+    int f;                      // number of failures tolerated (legacy; first group's f when heterogeneous)
 private:
     std::map<int, std::vector<ReplicaAddress> > replicas;
     std::map<int, std::map<int, int>> replicaHosts;
@@ -97,6 +110,10 @@ private:
     ReplicaAddress *fcAddress;
     bool hasFC;
     std::map<int, std::vector<std::string> > interfaces;
+    // Per-group replica count; populated for all groups, even homogeneous.
+    std::map<int, int> group_n_;
+    // Per-group fault tolerance; populated when group_f directives are present.
+    std::map<int, int> group_f_;
 };
 
 }      // namespace transport
@@ -119,7 +136,8 @@ template <> struct hash<transport::Configuration>
             size_t out = 0;
             out = x.n * 37 + x.f;
             for (int i = 0; i < x.g; i++ ) {
-                for (int j = 0; j < x.n; j++) {
+                int gn = x.GroupN(i);
+                for (int j = 0; j < gn; j++) {
                     out *= 37;
                     out += hash<transport::ReplicaAddress>()(x.replica(i, j));
                 }

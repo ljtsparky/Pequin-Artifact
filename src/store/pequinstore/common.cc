@@ -2240,5 +2240,74 @@ int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest)
   return txn.involved_groups(groupIdx);
 }
 
+// --- Per-group quorum overloads for heterogeneous shard membership ---
+
+uint64_t QuorumSize(const transport::Configuration *config, uint32_t group) {
+  return 4 * static_cast<uint64_t>(config->GroupF(group)) + 1;
+}
+
+uint64_t FastQuorumSize(const transport::Configuration *config, uint32_t group) {
+  return static_cast<uint64_t>(config->GroupN(group));
+}
+
+uint64_t SlowCommitQuorumSize(const transport::Configuration *config, uint32_t group) {
+  return 3 * static_cast<uint64_t>(config->GroupF(group)) + 1;
+}
+
+uint64_t FastAbortQuorumSize(const transport::Configuration *config, uint32_t group) {
+  return 3 * static_cast<uint64_t>(config->GroupF(group)) + 1;
+}
+
+uint64_t SlowAbortQuorumSize(const transport::Configuration *config, uint32_t group) {
+  return static_cast<uint64_t>(config->GroupF(group)) + 1;
+}
+
+bool IsReplicaInGroupHeterogeneous(uint64_t id, uint32_t group,
+    const transport::Configuration *config) {
+  uint64_t groupStart = config->GlobalReplicaId(group, 0);
+  uint64_t groupEnd = groupStart + static_cast<uint64_t>(config->GroupN(group));
+  return id >= groupStart && id < groupEnd;
+}
+
+bool VerifySnapshotCert(const proto::SnapshotCert &cert,
+    const proto::ShardMembershipCert &membershipCert,
+    KeyManager *keyManager) {
+  // 1. Check group and version match.
+  if (cert.group_id() != membershipCert.group_id()) return false;
+  if (cert.membership_version() != membershipCert.version()) return false;
+
+  // 2. Need at least 2f+1 distinct votes.
+  uint64_t fVal = membershipCert.f();
+  if (static_cast<uint64_t>(cert.votes_size()) < 2 * fVal + 1) return false;
+
+  std::set<uint64_t> verified;
+  for (const auto &vote : cert.votes()) {
+    // 3. Check voter is listed in the membership certificate.
+    bool found = false;
+    for (const auto &rep : membershipCert.replicas()) {
+      if (rep.replica_id() == vote.replica_id()) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+
+    // 4. No duplicate voters.
+    if (!verified.insert(vote.replica_id()).second) return false;
+
+    // 5. Verify Ed25519 signature over (snapshot_digest [|| result_hash]).
+    std::string data = cert.snapshot_digest();
+    if (cert.has_result_hash()) {
+      data += cert.result_hash();
+    }
+    const std::string &sig = vote.signature();
+    if (!crypto::Verify(keyManager->GetPublicKey(vote.replica_id()),
+        data.data(), data.size(), sig.data())) {
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace pequinstore
 

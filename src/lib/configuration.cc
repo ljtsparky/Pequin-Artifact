@@ -56,7 +56,7 @@ ReplicaAddress::operator==(const ReplicaAddress &other) const {
 Configuration::Configuration(const Configuration &c)
     : g(c.g), n(c.n), f(c.f), replicas(c.replicas), hasMulticast(c.hasMulticast),
       hasFC(c.hasFC), interfaces(c.interfaces), replicaHosts(c.replicaHosts),
-      hosts(c.hosts)
+      hosts(c.hosts), group_n_(c.group_n_), group_f_(c.group_f_)
 {
     multicastAddress = NULL;
     if (hasMulticast) {
@@ -75,6 +75,10 @@ Configuration::Configuration(int g, int n, int f,
                              std::map<int, std::vector<std::string> > interfaces)
     : g(g), n(n), f(f), replicas(replicas), interfaces(interfaces)
 {
+    // Populate per-group replica counts for heterogeneous support.
+    for (const auto &kv : replicas) {
+        group_n_[kv.first] = kv.second.size();
+    }
     if (multicastAddress) {
         hasMulticast = true;
         this->multicastAddress =
@@ -180,6 +184,22 @@ Configuration::Configuration(std::istream &file)
             multicastAddress = new ReplicaAddress(string(host),
                                                   string(port));
             hasMulticast = true;
+        } else if (strcasecmp(cmd, "group_f") == 0) {
+            // Per-group fault tolerance for heterogeneous shard membership.
+            // Must appear after a "group" line.
+            char *arg = strtok(NULL, " \t");
+            if (!arg) {
+                Panic("'group_f' configuration line requires an argument");
+            }
+            char *strtolPtr;
+            int gf = strtoul(arg, &strtolPtr, 0);
+            if ((*arg == '\0') || (*strtolPtr != '\0')) {
+                Panic("Invalid argument to 'group_f' configuration line");
+            }
+            if (group < 0) {
+                Panic("'group_f' must appear after a 'group' line");
+            }
+            group_f_[group] = gf;
         } else if (strcasecmp(cmd, "fc") == 0) {
             char *arg = strtok(NULL, " \t");
             if (!arg) {
@@ -207,11 +227,13 @@ Configuration::Configuration(std::istream &file)
         Panic("Configuration did not specify any groups");
     }
 
+    // Store per-group replica counts; allow heterogeneous sizes.
     n = replicas[0].size();
-
     for (auto &kv : replicas) {
-        if (kv.second.size() != (size_t)n) {
-            Panic("All groups must contain the same number of replicas.");
+        group_n_[kv.first] = kv.second.size();
+        if ((int)kv.second.size() != n) {
+            // Heterogeneous: keep n as first group's size for legacy compat.
+            // Code should use GroupN(group) instead of n.
         }
     }
 
@@ -327,6 +349,55 @@ Configuration::operator==(const Configuration &other) const
         }
     }
     return true;
+}
+
+int
+Configuration::GroupN(int group) const
+{
+    auto it = group_n_.find(group);
+    return (it != group_n_.end()) ? it->second : n;
+}
+
+int
+Configuration::GroupF(int group) const
+{
+    auto it = group_f_.find(group);
+    return (it != group_f_.end()) ? it->second : f;
+}
+
+uint64_t
+Configuration::GlobalReplicaId(int group, int idx) const
+{
+    uint64_t offset = 0;
+    for (int g = 0; g < group; g++) {
+        offset += static_cast<uint64_t>(GroupN(g));
+    }
+    return offset + static_cast<uint64_t>(idx);
+}
+
+std::pair<int,int>
+Configuration::GroupAndIdx(uint64_t globalId) const
+{
+    uint64_t offset = 0;
+    for (int grp = 0; grp < g; grp++) {
+        uint64_t gn = static_cast<uint64_t>(GroupN(grp));
+        if (globalId < offset + gn) {
+            return {grp, static_cast<int>(globalId - offset)};
+        }
+        offset += gn;
+    }
+    // globalId out of range; return invalid sentinel.
+    return {-1, -1};
+}
+
+bool
+Configuration::IsHeterogeneous() const
+{
+    if (group_f_.size() > 0) return true;
+    for (const auto &kv : group_n_) {
+        if (kv.second != n) return true;
+    }
+    return false;
 }
 
 } // namespace transport

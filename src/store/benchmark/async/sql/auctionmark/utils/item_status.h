@@ -29,4 +29,15 @@ public:
 
 } // namespace auctionmark
 
+#include <fmt/core.h>
+
+template <>
+struct fmt::formatter<auctionmark::ItemStatus> {
+    constexpr auto parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
+    template <typename FormatContext>
+    auto format(auctionmark::ItemStatus s, FormatContext& ctx) const {
+        return fmt::format_to(ctx.out(), "{}", static_cast<int>(s));
+    }
+};
+
 #endif // AUCTIONMARK_ITEM_STATUS_H

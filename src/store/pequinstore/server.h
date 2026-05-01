@@ -48,6 +48,7 @@
 #include "store/pequinstore/table_store_interface.h"
 #include "store/pequinstore/table_store_interface_toy.h"
 #include "store/pequinstore/table_store_interface_peloton.h"
+#include "store/pequinstore/membership.h"
 //#include "store/pequinstore/sql_interpreter.h"
 #include <sys/time.h>
 
@@ -156,6 +157,17 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx) override;
 
   virtual inline Stats &GetStats() override { return stats; }
+
+  // --- Cross-shard heterogeneous membership handlers ---
+  // Handle a FrontierRequest: reply with this replica's committed frontier.
+  void HandleFrontierRequest(const TransportAddress &remote,
+      proto::FrontierRequest &msg);
+  // Generate a SnapshotVote: sign the given snapshot digest with this
+  // replica's private key and fill in the vote proto.
+  void GenerateSnapshotVote(const std::string &snapshotDigest,
+      proto::SnapshotVote *vote);
+  // Verify a foreign shard's SS-CERT against its membership certificate.
+  bool VerifyForeignSSCert(const proto::SnapshotCert &cert);
 
  private:
     bool simulate_point_kv;
@@ -949,6 +961,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   Partitioner *part;
   const Parameters params;
   KeyManager *keyManager;
+
+  // --- Cross-shard heterogeneous membership support ---
+  MembershipManager membershipMgr_;
+  proto::ShardMembershipCert localMembershipCert_;
+
   const uint64_t timeDelta;
   TrueTime timeServer;
   BatchSigner *batchSigner;

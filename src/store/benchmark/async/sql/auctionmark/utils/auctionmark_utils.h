@@ -27,6 +27,7 @@
 #ifndef AUCTIONMARK_UTILS_H
 #define AUCTIONMARK_UTILS_H
 
+#include <optional>
 #include <random>
 #include <iostream>
 #include <sys/time.h>

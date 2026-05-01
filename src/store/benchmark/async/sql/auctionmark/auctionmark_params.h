@@ -27,6 +27,8 @@
 #ifndef AUCTIONMARK_PARAMS_H
 #define AUCTIONMARK_PARAMS_H
 
+#include <string>
+#include <optional>
 #include <stdint.h>
 #include <unordered_set>
 

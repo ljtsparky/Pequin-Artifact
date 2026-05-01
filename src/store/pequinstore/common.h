@@ -403,6 +403,22 @@ uint64_t SlowAbortQuorumSize(const transport::Configuration *config);
 bool IsReplicaInGroup(uint64_t id, uint32_t group,
     const transport::Configuration *config);
 
+// --- Per-group overloads for heterogeneous shard membership ---
+uint64_t QuorumSize(const transport::Configuration *config, uint32_t group);
+uint64_t FastQuorumSize(const transport::Configuration *config, uint32_t group);
+uint64_t SlowCommitQuorumSize(const transport::Configuration *config, uint32_t group);
+uint64_t FastAbortQuorumSize(const transport::Configuration *config, uint32_t group);
+uint64_t SlowAbortQuorumSize(const transport::Configuration *config, uint32_t group);
+
+// Heterogeneous membership check using cumulative ID offsets.
+bool IsReplicaInGroupHeterogeneous(uint64_t id, uint32_t group,
+    const transport::Configuration *config);
+
+// Verify a cross-shard SnapshotCert against a foreign shard's membership cert.
+bool VerifySnapshotCert(const proto::SnapshotCert &cert,
+    const proto::ShardMembershipCert &membershipCert,
+    KeyManager *keyManager);
+
 int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest);
 
 inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &rhs) { 

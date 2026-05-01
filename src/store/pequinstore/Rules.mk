@@ -4,7 +4,7 @@ SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc server_fallback.cc 
 		phase1validator.cc localbatchsigner.cc sharedbatchsigner.cc \
 		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc \
 		querysync-server.cc querysync-servertools.cc querysync-tests.cc querysync-client.cc queryexec.cc checkpointing.cc snapshot_mgr.cc sql_interpreter.cc \
-		concurrencycontrol_semantic.cc)
+		concurrencycontrol_semantic.cc membership.cc)
 
 PROTOS += $(addprefix $(d), pequin-proto.proto)
 PROTOS += $(addprefix $(d), query-proto.proto)
@@ -25,14 +25,14 @@ LIB-pequin-store := $(o)server.o $(o)server_fallback.o $(o)servertools.o $(o)que
 	$(o)pequin-proto.o $(o)query-proto.o $(LIB-pequin-common) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-bft-tapir-config) \
 	$(LIB-configuration) $(LIB-store-common) $(LIB-transport) $(o)phase1validator.o \
 	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o $(o)localbatchverifier.o $(o)sharedbatchverifier.o \
-	$(LIB-query-engine) $(o)table_store_interface_peloton.o $(o)table_store_interface_toy.o #$(o)table_store_interface_old.o
+	$(LIB-query-engine) $(o)table_store_interface_peloton.o $(o)table_store_interface_toy.o $(o)membership.o
 
 
 LIB-pequin-client := $(LIB-udptransport) \
 	$(LIB-store-frontend) $(LIB-store-common) $(o)pequin-proto.o $(o)query-proto.o\
 	$(o)shardclient.o $(o)querysync-client.o $(o)client.o $(LIB-bft-tapir-config) \
 	$(LIB-crypto) $(LIB-batched-sigs) $(LIB-pequin-common) $(o)phase1validator.o \
-	$(o)basicverifier.o $(o)localbatchverifier.o
+	$(o)basicverifier.o $(o)localbatchverifier.o $(o)membership.o
 
 
 LIB-proto := $(o)pequin-proto.o $(o)query-proto.o

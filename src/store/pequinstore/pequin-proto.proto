@@ -439,3 +439,55 @@ message SendView {
   required bytes txn_digest = 2;
   required AttachedView attached_view = 3;
 }
+
+/////////////////////////////////////////////////////// Cross-Shard Heterogeneous Membership:
+
+// Public key information for a single replica within a shard.
+message ReplicaKeyInfo {
+  required uint64 replica_id = 1;        // globally unique replica ID
+  required bytes public_key = 2;         // Ed25519 public key bytes
+}
+
+// Shard Membership Certificate: published by each shard so that foreign
+// shards can independently verify signatures produced by this shard's replicas.
+// Re-issued on membership change; old versions invalidated by monotonic version.
+message ShardMembershipCert {
+  required uint64 group_id = 1;          // shard / group index
+  required uint64 version = 2;           // monotonically increasing version number
+  required uint64 f = 3;                 // fault tolerance threshold for this shard
+  required uint64 n = 4;                 // total replicas in this shard (= 5f+1)
+  repeated ReplicaKeyInfo replicas = 5;  // replica public key info list
+  required bytes cert_digest = 6;        // BLAKE3(group_id || version || f || n || replicas)
+}
+
+// A single replica's vote on a snapshot (used to build SnapshotCert).
+message SnapshotVote {
+  required uint64 replica_id = 1;        // globally unique replica ID of the voter
+  required bytes signature = 2;          // Ed25519 sign(snapshot_digest [|| result_hash])
+}
+
+// Cross-Shard Snapshot Certificate: collection of 2f+1 SnapshotVotes from
+// distinct replicas of a single shard. Foreign shards verify by checking
+// signatures against the publishing shard's ShardMembershipCert.
+message SnapshotCert {
+  required uint64 group_id = 1;          // which shard produced this certificate
+  required uint64 membership_version = 2;// membership cert version used for signing
+  repeated SnapshotVote votes = 3;       // >= 2f+1 votes from distinct replicas
+  optional bytes result_hash = 4;        // H(query_result) for nested query binding
+  required bytes snapshot_digest = 5;    // BLAKE3 digest of the snapshot state voted on
+}
+
+// Frontier request: client asks replicas for their highest committed timestamp.
+// Used in the flat cross-shard query protocol to compute T_global.
+message FrontierRequest {
+  required uint64 req_id = 1;
+  required uint64 client_id = 2;
+}
+
+// Frontier reply: replica reports its highest committed timestamp.
+message FrontierReply {
+  required uint64 req_id = 1;
+  required uint64 replica_id = 2;
+  required uint64 committed_frontier = 3;// highest committed transaction timestamp
+  required bytes signature = 4;          // Ed25519 sign(req_id || committed_frontier)
+}

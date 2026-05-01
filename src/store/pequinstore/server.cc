@@ -61,7 +61,8 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
                bool simulate_point_kv, bool simulate_replica_failure, bool simulate_inconsistency, bool disable_prepare_visibility,
                TrueTime timeServer)
     : PingServer(transport), config(config), groupIdx(groupIdx), idx(idx),
-      numShards(numShards), numGroups(numGroups), id(groupIdx * config.n + idx),
+      numShards(numShards), numGroups(numGroups),
+      id(config.GlobalReplicaId(groupIdx, idx)),
       transport(transport), occType(occType), part(part), params(params),
       keyManager(keyManager), timeDelta(timeDelta), timeServer(timeServer),
       sql_bench(sql_bench), 
@@ -85,6 +86,11 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   //////
 
   stats.Increment("total_equiv_received_adopt", 0);
+
+  // Generate this shard's membership certificate and store it locally.
+  localMembershipCert_ = MembershipManager::GenerateCert(
+      static_cast<uint64_t>(groupIdx), 1, &config, keyManager);
+  membershipMgr_.StoreForeignCert(localMembershipCert_);
 
   Notice("Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
   Notice("Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");
@@ -2877,5 +2883,47 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
    mq.release();
 }
 
+
+// --- Cross-shard heterogeneous membership handlers ---
+
+void Server::HandleFrontierRequest(const TransportAddress &remote,
+    proto::FrontierRequest &msg) {
+  // Reply with this replica's highest committed timestamp (frontier).
+  proto::FrontierReply reply;
+  reply.set_req_id(msg.req_id());
+  reply.set_replica_id(static_cast<uint64_t>(id));
+
+  // Use the current local clock as a conservative committed frontier.
+  uint64_t frontier = timeServer.GetTime();
+  reply.set_committed_frontier(frontier);
+
+  // Sign (req_id || committed_frontier) for integrity.
+  std::string data;
+  uint64_t reqId = msg.req_id();
+  data.append(reinterpret_cast<const char*>(&reqId), sizeof(reqId));
+  data.append(reinterpret_cast<const char*>(&frontier), sizeof(frontier));
+  reply.set_signature(crypto::Sign(keyManager->GetPrivateKey(id), data));
+
+  // Send reply via the transport layer.
+  transport->SendMessage(this, remote, reply);
+}
+
+void Server::GenerateSnapshotVote(const std::string &snapshotDigest,
+    proto::SnapshotVote *vote) {
+  vote->set_replica_id(static_cast<uint64_t>(id));
+  vote->set_signature(
+      crypto::Sign(keyManager->GetPrivateKey(id), snapshotDigest));
+}
+
+bool Server::VerifyForeignSSCert(const proto::SnapshotCert &cert) {
+  // Look up the membership certificate for the foreign shard.
+  const proto::ShardMembershipCert *membershipCert =
+      membershipMgr_.GetCert(cert.group_id());
+  if (membershipCert == nullptr) {
+    Debug("No membership cert for group %lu", cert.group_id());
+    return false;
+  }
+  return VerifySnapshotCert(cert, *membershipCert, keyManager);
+}
 
 } // namespace pequinstore

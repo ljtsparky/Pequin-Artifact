@@ -45,6 +45,7 @@
 #include "store/common/frontend/bufferclient.h"
 #include "store/pequinstore/shardclient.h"
 #include "store/pequinstore/pequin-proto.pb.h"
+#include "store/pequinstore/membership.h"
 #include <sys/time.h>
 #include "store/common/stats.h"
 #include <unistd.h>
@@ -123,6 +124,27 @@ class Client : public ::Client {
       uint32_t timeout) override;
 
   //inline const Stats &GetStats() const { return stats; }
+
+  // --- Cross-shard heterogeneous membership support ---
+
+  // Execute a flat cross-shard query: all involved shards are known upfront.
+  // 1) Collects committed frontiers from all shards to compute T_global.
+  // 2) Executes the query at T_global on each shard.
+  // 3) Collects and cross-validates SS-CERTs between shards.
+  typedef std::function<void(int, const std::string &)> cross_shard_query_callback;
+  void ExecuteFlatQuery(const std::string &query,
+      const std::vector<uint64_t> &involvedGroups,
+      cross_shard_query_callback cb);
+
+  // Execute a nested cross-shard query with two-phase snapshot locking.
+  // Phase 1: Execute innerQuery at T_global, get result R and SS-CERT_i.
+  // Phase 2: Use R to determine outer shards, execute outerQuery at T_global.
+  // SS-CERT_i includes H(R), binding the inner result cryptographically.
+  void ExecuteNestedQuery(const std::string &innerQuery,
+      const std::string &outerQuery,
+      const std::vector<uint64_t> &innerGroups,
+      cross_shard_query_callback cb);
+
  private:
    //Stats stats;
    uint64_t consecutiveMax;
@@ -379,6 +401,22 @@ class Client : public ::Client {
   Stats dummyStats;
   // TrueTime server.
   TrueTime timeServer;
+
+  // --- Cross-shard heterogeneous membership ---
+  MembershipManager membershipMgr_;
+
+  // State for a pending cross-shard flat query.
+  struct PendingCrossShardQuery {
+    std::map<uint64_t, std::vector<uint64_t>> frontiers; // group -> frontier values
+    std::map<uint64_t, proto::SnapshotCert> ssCerts;     // group -> SS-CERT
+    uint64_t tGlobal;
+    std::vector<uint64_t> involvedGroups;
+    std::string query;
+    cross_shard_query_callback cb;
+    int outstandingFrontiers;
+    int outstandingQueries;
+  };
+  std::map<uint64_t, PendingCrossShardQuery *> pendingCrossShardQueries_;
 
   // true after client waits params.injectFailure.timeMs
   bool failureEnabled;

@@ -198,9 +198,24 @@ message SyncClientProposal {
    SignedMessage signed_merged_ss = 3;
  }
  required bool designated_for_reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
- 
+
  optional bool query_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
  optional Query query = 6; //In case we didn't send it before.
+
+ // Cross-shard: SS-CERT from a foreign shard, forwarded by the client.
+ // The receiving shard verifies this against the foreign shard's membership cert
+ // before accepting cross-shard snapshot coordination.
+ optional SnapshotCert foreign_ss_cert = 7;
+}
+
+// Cross-shard query execution request: client instructs a shard to execute
+// a query at a globally agreed snapshot time T_global, providing SS-CERTs
+// from other involved shards as proof of their snapshot state.
+message CrossShardQueryRequest {
+  required uint64 req_id = 1;
+  required uint64 t_global = 2;          // globally agreed snapshot timestamp
+  required Query query = 3;
+  repeated SnapshotCert foreign_ss_certs = 4;  // proofs from other shards
 }
 
 message RequestMissingTxns {
