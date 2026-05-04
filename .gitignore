@@ -116,3 +116,13 @@ tags
 # Clang
 src/.cache/*
 compile_commands.json
+src/store/pequinstore/tests/membership_test
+*.o
+*.a
+src/store/pequinstore/tests/snapshot_test
+src/store/pequinstore/tests/compression_test
+src/store/pequinstore/tests/proto_bench
+src/store/pequinstore/tests/sql_interpreter_test
+src/store/pequinstore/tests/table_loader_test
+src/store/pequinstore/tests/table_store_interface_test
+src/store/pequinstore/tests/tbb_test
