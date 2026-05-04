@@ -20,7 +20,8 @@
 #   -k <n>      ops per txn  (default 2)
 #   -n <n>      num keys in workload  (default 1)
 
-set -euo pipefail
+set -uo pipefail   # NOTE: no -e on purpose — we want to reach the diagnostic dump
+                    # even if a sub-command (client / server) returns non-zero.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -30,7 +31,7 @@ CONFIG="${SCRIPT_DIR}/shard-r6.config"
 DURATION=10
 CLIENTS=0
 KEYS=2
-NUM_KEYS=1
+NUM_KEYS=1000   # plenty of keys so RW txns don't all conflict on the same row
 
 while getopts d:c:k:n: opt; do
   case $opt in
@@ -146,10 +147,18 @@ else:
     sys.exit(1)
 PYEOF
 else
-  echo "  FAIL: stats-0.json missing — check client-0.log:"
-  echo "  --- last 20 lines of client-0.log ---"
-  tail -20 "${OUT_DIR}/client-0.log" 2>/dev/null || echo "    (no log file)"
-  echo "  --- last 20 lines of server-0.log ---"
-  tail -20 "${OUT_DIR}/server-0.log" 2>/dev/null || echo "    (no log file)"
+  echo "  FAIL: stats-0.json missing — dumping full logs for diagnosis"
+  echo
+  echo "================ FULL client-0.log ================"
+  cat "${OUT_DIR}/client-0.log" 2>/dev/null || echo "(no client log produced)"
+  echo
+  echo "================ FULL server-0.log ================"
+  cat "${OUT_DIR}/server-0.log" 2>/dev/null || echo "(no server log produced)"
+  echo
+  echo "================ tail -5 of server-{1..5}.log ===="
+  for i in 1 2 3 4 5; do
+    echo "--- server-${i}.log (tail) ---"
+    tail -5 "${OUT_DIR}/server-${i}.log" 2>/dev/null || echo "(no log)"
+  done
   exit 1
 fi
