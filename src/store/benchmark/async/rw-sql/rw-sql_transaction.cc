@@ -30,8 +30,53 @@
 #include "rw-sql_transaction.h"
 
 #include <functional>
+#include <fstream>
+#include <mutex>
+#include <chrono>
+#include <sstream>
+#include <gflags/gflags.h>
+
+DECLARE_string(elle_history_path);
+DECLARE_uint64(client_id);
 
 namespace rwsql {
+
+// ============================================================================
+// ElleLogger — appends Elle-compatible JSON history lines for mini_elle.py
+// (and the real `elle-cli` once installed).  Active iff
+// --elle_history_path is non-empty.  rw-register model: each txn op is
+// either [:r k v] or [:w k v].
+// ============================================================================
+namespace {
+std::ofstream g_elle_log;
+std::mutex     g_elle_mu;
+bool           g_elle_inited = false;
+
+void EllInit() {
+  std::lock_guard<std::mutex> lk(g_elle_mu);
+  if (g_elle_inited) return;
+  g_elle_inited = true;
+  if (FLAGS_elle_history_path.empty()) return;
+  g_elle_log.open(FLAGS_elle_history_path, std::ios::out | std::ios::trunc);
+}
+
+uint64_t EllNowNs() {
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+void EllEmit(const std::string &type, uint64_t process,
+             const std::string &ops_json) {
+  if (FLAGS_elle_history_path.empty()) return;
+  EllInit();
+  if (!g_elle_log.is_open()) return;
+  std::lock_guard<std::mutex> lk(g_elle_mu);
+  g_elle_log << "{\"type\":\"" << type << "\",\"process\":" << process
+             << ",\"time\":" << EllNowNs()
+             << ",\"value\":[" << ops_json << "]}\n";
+  g_elle_log.flush();
+}
+} // namespace
 
 const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const uint64_t alpha_numeric_size = sizeof(ALPHA_NUMERIC) - 1; //Account for \0 terminator
@@ -103,14 +148,28 @@ static int count = 1;
 
 //WARNING: CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
 transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
-  //Note: Semantic CC cannot help this Transaction avoid aborts. Since it does value++, all TXs that touch value must be totally ordered. 
-  
+  //Note: Semantic CC cannot help this Transaction avoid aborts. Since it does value++, all TXs that touch value must be totally ordered.
+
   //reset Tx exec state. When avoiding redundant queries we may split into new queries. liveOps keeps track of total number of attempted queries
   liveOps = numOps;
   past_ranges.clear();
   statements.clear();
+  elle_ops_.clear();    // Elle: reset per-txn op buffer
 
   Debug("Start next Transaction");
+
+  // Elle: log :invoke at the very start of the txn (before any reads).
+  // For rw-register the invoke value is a sketch — we just record planned
+  // ops as :r placeholders; the :ok event below carries the actual values.
+  {
+    std::ostringstream invoke_ops;
+    for (int i = 0; i < (int)numOps; ++i) {
+      if (i) invoke_ops << ",";
+      // We don't know the read result yet; emit nil placeholder for v.
+      invoke_ops << "[\"r\",\"" << tables[i] << ":" << starts[i] << "\",null]";
+    }
+    EllEmit("invoke", FLAGS_client_id, invoke_ops.str());
+  }
 
   client.Begin(timeout);
 
@@ -164,6 +223,20 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   transaction_status_t commitRes = client.Commit(timeout);
 
   Debug("TXN COMMIT STATUS: %d",commitRes);
+
+  // Elle: log :ok if committed, :fail if aborted.
+  // elle_ops_ was filled by Update() during the txn body.
+  {
+    std::ostringstream ok_ops;
+    bool first = true;
+    for (const auto &op : elle_ops_) {
+      if (!first) ok_ops << ",";
+      first = false;
+      ok_ops << op;
+    }
+    const char *type = (commitRes == COMMITTED) ? "ok" : "fail";
+    EllEmit(type, FLAGS_client_id, ok_ops.str());
+  }
 
   // if(count++ == 2){
   //    Panic("stop after two"); //Expectation: First TX writes something. Second Transaction will need to do sync protocol.
@@ -343,6 +416,7 @@ void RWSQLTransaction::Update(SyncClient &client, const std::string &table_name,
     uint64_t val;
     deserialize(val, queryResult, row, 1);
     Debug("Read key: %d. val: %d", key, val);
+    uint64_t val_old = val;        // Elle: capture pre-update value
     if(value_categories < 0){
       val+=1;
     }
@@ -351,6 +425,16 @@ void RWSQLTransaction::Update(SyncClient &client, const std::string &table_name,
       val = std::rand() % value_categories;
     }
     statement = fmt::format("INSERT INTO {0} VALUES ({1}, {2})", table_name, key, val);
+    // Elle: log [:r table:k val_old] then [:w table:k val_new]
+    {
+      std::ostringstream ek;
+      ek << "\"" << table_name << ":" << key << "\"";
+      std::ostringstream r_op, w_op;
+      r_op << "[\"r\"," << ek.str() << "," << val_old << "]";
+      w_op << "[\"w\"," << ek.str() << "," << val << "]";
+      elle_ops_.push_back(r_op.str());
+      elle_ops_.push_back(w_op.str());
+    }
   }
   else{ //using string val
     //Create new random string using the current value as seed.

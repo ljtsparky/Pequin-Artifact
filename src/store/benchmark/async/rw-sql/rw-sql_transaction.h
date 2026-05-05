@@ -109,6 +109,12 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   
   std::vector<std::string> statements; //keep statements in scope to allow for parallel Writes
 
+  // Elle: per-txn buffer of pre-formatted JSON op fragments, e.g.
+  //   ["r","0:42",17],["w","0:42",18]
+  // Filled by Update() each time we read+write. Drained on commit/abort
+  // to emit a single :ok or :fail event.
+  std::vector<std::string> elle_ops_;
+
   inline int wrap(int x){
     return mod(x, numKeys);
   }

@@ -645,6 +645,10 @@ DEFINE_uint64(delay, 0, "simulated communication delay");
 DEFINE_int32(clock_skew, 0, "difference between real clock and TrueTime");
 DEFINE_int32(clock_error, 0, "maximum error for clock");
 DEFINE_string(stats_file, "", "path to output stats file.");
+DEFINE_string(elle_history_path, "", "if non-empty, path where rw-sql will append "
+                                      "an Elle-compatible newline-delimited JSON history of "
+                                      "every txn (invoke + ok/fail). Use mini_elle.py or "
+                                      "elle-cli to verify the resulting history.");
 DEFINE_uint64(abort_backoff, 100, "sleep exponentially increasing amount after abort.");
 DEFINE_bool(retry_aborted, true, "retry aborted transactions.");
 DEFINE_int64(max_attempts, -1, "max number of attempts per transaction (or -1"
