@@ -423,9 +423,13 @@ void RWSQLTransaction::Update(SyncClient &client, const std::string &table_name,
     // Otherwise keep the legacy val++ behaviour for compatibility with
     // existing experiments.
     if (!FLAGS_elle_history_path.empty()) {
+      // Pesto's auto-generated schema declares `value INT` which is a
+      // signed 32-bit column.  Pack 8-bit client_id in the high byte and
+      // 24-bit per-client seq in the low bytes -> max value 0x7FFFFFFF,
+      // and globally unique across the 6-client deployment.
       static thread_local uint64_t per_client_seq = 0;
-      val = ((static_cast<uint64_t>(FLAGS_client_id) & 0xffffffffULL) << 32)
-            | (++per_client_seq & 0xffffffffULL);
+      val = ((static_cast<uint64_t>(FLAGS_client_id) & 0x7fULL) << 24)
+            | (++per_client_seq & 0xffffffULL);
     } else if(value_categories < 0){
       val+=1;
     }
