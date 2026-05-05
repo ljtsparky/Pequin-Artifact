@@ -417,7 +417,16 @@ void RWSQLTransaction::Update(SyncClient &client, const std::string &table_name,
     deserialize(val, queryResult, row, 1);
     Debug("Read key: %d. val: %d", key, val);
     uint64_t val_old = val;        // Elle: capture pre-update value
-    if(value_categories < 0){
+    // Elle: when --elle_history_path is set, write a globally unique value
+    // (high 32 bits = client_id, low 32 bits = per-client monotonic counter)
+    // so the DSG can unambiguously attribute every read to one writer.
+    // Otherwise keep the legacy val++ behaviour for compatibility with
+    // existing experiments.
+    if (!FLAGS_elle_history_path.empty()) {
+      static thread_local uint64_t per_client_seq = 0;
+      val = ((static_cast<uint64_t>(FLAGS_client_id) & 0xffffffffULL) << 32)
+            | (++per_client_seq & 0xffffffffULL);
+    } else if(value_categories < 0){
       val+=1;
     }
     else{
