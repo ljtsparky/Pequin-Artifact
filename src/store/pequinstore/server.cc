@@ -91,6 +91,9 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   localMembershipCert_ = MembershipManager::GenerateCert(
       static_cast<uint64_t>(groupIdx), 1, &config, keyManager);
   membershipMgr_.StoreForeignCert(localMembershipCert_);
+  // Surface in stats so we can confirm the membership runtime path is alive
+  // even on runs where no foreign SS-CERT is forwarded.
+  stats.Increment("membership_cert_loaded", 1);
 
   Notice("Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
   Notice("Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");

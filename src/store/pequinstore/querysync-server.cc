@@ -529,6 +529,23 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     }
     qw.release();
 
+    // 2.5) Cross-shard heterogeneous-membership: if the proposal carries a
+    // foreign shard's SS-CERT, verify it against the foreign membership cert
+    // we have on file. Counter-only for now (do not reject on failure) so we
+    // can observe the fire rate before flipping to fail-closed in v2.
+    stats.Increment("handle_sync_total", 1);
+    if (msg.has_foreign_ss_cert()) {
+        stats.Increment("ss_cert_seen", 1);
+        if (VerifyForeignSSCert(msg.foreign_ss_cert())) {
+            stats.Increment("ss_cert_verifications_done", 1);
+        } else {
+            stats.Increment("ss_cert_verifications_failed", 1);
+            Notice("SS-CERT verify FAILED for Query[%lu:%lu:%d] foreign_group=%lu",
+                   merged_ss->client_id(), merged_ss->query_seq_num(),
+                   merged_ss->retry_version(),
+                   msg.foreign_ss_cert().group_id());
+        }
+    }
 
     // 3) Check whether retry version is still relevant
     queryMetaDataMap::accessor q;
