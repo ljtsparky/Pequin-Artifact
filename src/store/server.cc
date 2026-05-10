@@ -550,8 +550,14 @@ int main(int argc, char **argv) {
 
   transport::Configuration config(configStream);
 
-  if (FLAGS_replica_idx >= static_cast<uint64_t>(config.n)) {
-    Panic("Replica index %d is out of bounds. n=%d", FLAGS_replica_idx, config.n);
+  // For heterogeneous shards, the bound is the per-group n (config.GroupN),
+  // not the global n (which Configuration sets to the FIRST group's size).
+  // Without this fix, shard 1's replicas with idx >= 6 would panic on a
+  // (6, 11) heterogeneous deployment.
+  int groupN = config.GroupN(FLAGS_group_idx);
+  if (FLAGS_replica_idx >= static_cast<uint64_t>(groupN)) {
+    Panic("Replica index %d is out of bounds for group %d. groupN=%d",
+          FLAGS_replica_idx, FLAGS_group_idx, groupN);
   }
 
   if (proto == PROTO_UNKNOWN) {
