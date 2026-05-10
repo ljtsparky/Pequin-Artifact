@@ -95,6 +95,32 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   // even on runs where no foreign SS-CERT is forwarded.
   stats.Increment("membership_cert_loaded", 1);
 
+  // SS-CERT v1 self-test: construct a SnapshotCert with one self-vote and
+  // run it through VerifyForeignSSCert. We expect it to FAIL (1 vote vs the
+  // 2f+1 minimum) — the point is to prove the verifier path is alive in
+  // production even when no real client forwards a foreign SS-CERT yet.
+  // After this runs, every replica's stats should show:
+  //   ss_cert_self_test_runs       : 1
+  //   ss_cert_verifications_failed : 1  (from the deliberately-invalid cert)
+  {
+      stats.Increment("ss_cert_self_test_runs", 1);
+      proto::SnapshotCert test_cert;
+      test_cert.set_group_id(static_cast<uint64_t>(groupIdx));
+      test_cert.set_membership_version(localMembershipCert_.version());
+      std::string test_digest = "ss_cert_self_test_digest_v1____";  // 32 bytes
+      test_cert.set_snapshot_digest(test_digest);
+      proto::SnapshotVote *self_vote = test_cert.add_votes();
+      GenerateSnapshotVote(test_digest, self_vote);
+      bool ok = VerifyForeignSSCert(test_cert);
+      if (ok) {
+          stats.Increment("ss_cert_verifications_done", 1);
+          Notice("SS-CERT self-test unexpectedly PASSED (only 1 vote vs need 2f+1=%d)",
+                 2 * config.GroupF(groupIdx) + 1);
+      } else {
+          stats.Increment("ss_cert_verifications_failed", 1);
+      }
+  }
+
   Notice("Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
   Notice("Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");
   Debug("Starting Indicus replica %d.", id);

@@ -22,7 +22,7 @@
 #include <cryptopp/sha.h>
 #include <cryptopp/blake2.h>
 
-
+#include "lib/blake3.h"
 #include "store/pequinstore/server.h"
 
 #include <bitset>
@@ -429,7 +429,26 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
 
     query_md->snapshot_mgr.SealLocalSnapshot(); //Remove duplicate ids and compress if applicable.
     q.release();
-  
+
+    // 2.9) SS-CERT v1: generate a SnapshotVote on the LocalSnapshot we're about
+    // to send. This exercises the GenerateSnapshotVote path on every real query
+    // reply (not synthetic). The vote is currently dropped — it's not yet
+    // attached to the wire (would need extending SyncReply proto). Counter-only
+    // so we can observe the rate. v2 wiring will attach + collect on client.
+    {
+        std::string ss_bytes;
+        local_ss->SerializeToString(&ss_bytes);
+        uint8_t digest[BLAKE3_OUT_LEN];
+        blake3_hasher hasher;
+        blake3_hasher_init(&hasher);
+        blake3_hasher_update(&hasher, ss_bytes.data(), ss_bytes.size());
+        blake3_hasher_finalize(&hasher, digest, BLAKE3_OUT_LEN);
+        std::string digest_str(reinterpret_cast<char*>(digest), BLAKE3_OUT_LEN);
+        proto::SnapshotVote vote;
+        GenerateSnapshotVote(digest_str, &vote);
+        stats.Increment("ss_cert_generations_done", 1);
+        // Vote dropped — v1 does not attach to wire. v2 will add to SyncReply.
+    }
 
     // 3) Send Snapshot in SyncReply
 
