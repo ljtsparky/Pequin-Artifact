@@ -726,9 +726,16 @@ int main(int argc, char **argv) {
 
   //////////
   
-  uint64_t replica_total = FLAGS_num_shards * config.n;
+  // Heterogeneous: sum per-group replica counts; legacy code multiplied a
+  // single n by num_shards which underestimates KeyManager's slot count when
+  // shards have different sizes. KeyManager rejects key IDs >= replica_total.
+  uint64_t replica_total = 0;
+  for (int g = 0; g < FLAGS_num_shards; g++) {
+    replica_total += static_cast<uint64_t>(config.GroupN(g));
+  }
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  Notice("config n: %d. num_shards: %d. replica_total: %d",config.n, FLAGS_num_shards, replica_total);
+  Notice("config n: %d. num_shards: %d. replica_total: %d (heterogeneous-aware sum)",
+         config.n, FLAGS_num_shards, replica_total);
   
   KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
  

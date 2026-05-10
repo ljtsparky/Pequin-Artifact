@@ -332,7 +332,9 @@ TCPTransport::Register(TransportReceiver *receiver,
                        const transport::Configuration &config,
                        int groupIdx, int replicaIdx)
 {
-    UW_ASSERT(replicaIdx < config.n);
+    // Heterogeneous shards: per-group n (config.n is the first group's size).
+    // Without this, shard-N replicas with idx >= n_0 panic on registration.
+    UW_ASSERT(replicaIdx < config.GroupN(groupIdx));
     struct sockaddr_in sin;
 
     //const transport::Configuration *canonicalConfig =
