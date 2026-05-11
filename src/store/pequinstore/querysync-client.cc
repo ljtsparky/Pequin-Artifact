@@ -317,9 +317,12 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
 
     // SS-CERT v2: harvest the replica's SnapshotVote, dedup by replica_id,
     // and assemble a SnapshotCert when 2f+1 distinct votes are in.
+    if (stats) stats->Increment("client_sync_reply_seen", 1);
     if (SyncReply.has_vote()) {
+        if (stats) stats->Increment("client_vote_received", 1);
         const proto::SnapshotVote &v = SyncReply.vote();
         if (pendingQuery->voted_replicas.insert(v.replica_id()).second) {
+            if (stats) stats->Increment("client_vote_distinct", 1);
             pendingQuery->collected_votes.push_back(v);
 
             uint64_t need = 2 * static_cast<uint64_t>(config->GroupF(group)) + 1;
@@ -346,6 +349,7 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
                 }
                 if (added >= need) {
                     has_last_completed_cert_ = true;
+                    if (stats) stats->Increment("client_cert_built", 1);
                 }
             }
         }
@@ -557,6 +561,9 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     // beyond looking up the matching membership cert.)
     if (has_last_completed_cert_) {
         *syncMsg.mutable_foreign_ss_cert() = last_completed_cert_;
+        if (stats) stats->Increment("client_cert_attached", 1);
+    } else {
+        if (stats) stats->Increment("client_cert_not_yet_built", 1);
     }
 
     for (size_t i = 0; i < total_msg; ++i) {
