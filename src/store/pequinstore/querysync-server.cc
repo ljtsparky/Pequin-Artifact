@@ -430,17 +430,30 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     query_md->snapshot_mgr.SealLocalSnapshot(); //Remove duplicate ids and compress if applicable.
     q.release();
 
-    // 2.9) SS-CERT v2: generate a SnapshotVote on the LocalSnapshot we're about
-    // to send AND attach it to the SyncReply via the new `vote` field. Client
-    // collects 2f+1 such votes per shard, packages into a SnapshotCert, and
-    // forwards as `foreign_ss_cert` on the next cross-shard SyncClientProposal.
+    // 2.9) SS-CERT v2.3: generate a SnapshotVote over the QUERY IDENTITY,
+    // not the LocalSnapshot. Reason: every replica has its own LocalSnapshot
+    // (different per-replica state) so 2f+1 replicas would sign 2f+1
+    // different digests — client could never assemble a homogeneous cert.
+    // Signing over query identity (seq, retry_ver, client_id) lets all
+    // replicas serving the same query produce the SAME digest, so the
+    // client can collect 2f+1 votes on the same digest.
+    //
+    // This is a v2-grade approximation: it proves "2f+1 replicas of group G
+    // saw query Q" rather than the stronger "2f+1 replicas of group G agreed
+    // on the same snapshot bytes for query Q". Full v3 would sign the merged
+    // snapshot after the client returns it on the next round.
     {
-        std::string ss_bytes;
-        local_ss->SerializeToString(&ss_bytes);
+        uint64_t qseq = query->query_seq_num();
+        uint64_t qcli = query->client_id();
+        uint64_t qver = query->retry_version();
+        uint64_t qgrp = static_cast<uint64_t>(groupIdx);
         uint8_t digest[BLAKE3_OUT_LEN];
         blake3_hasher hasher;
         blake3_hasher_init(&hasher);
-        blake3_hasher_update(&hasher, ss_bytes.data(), ss_bytes.size());
+        blake3_hasher_update(&hasher, &qseq, sizeof(qseq));
+        blake3_hasher_update(&hasher, &qcli, sizeof(qcli));
+        blake3_hasher_update(&hasher, &qver, sizeof(qver));
+        blake3_hasher_update(&hasher, &qgrp, sizeof(qgrp));
         blake3_hasher_finalize(&hasher, digest, BLAKE3_OUT_LEN);
         std::string digest_str(reinterpret_cast<char*>(digest), BLAKE3_OUT_LEN);
         GenerateSnapshotVote(digest_str, syncReply->mutable_vote());
