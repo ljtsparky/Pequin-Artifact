@@ -302,6 +302,11 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     std::unordered_set<uint64_t> snapshotsVerified;
     proto::MergedSnapshot merged_ss;
     SnapshotManager snapshot_mgr;
+    // SS-CERT v2: collect votes from each replica's SyncReply.vote(). When
+    // we have 2f+1 distinct-replica votes, build a SnapshotCert and stash on
+    // ShardClient (last_completed_cert_) for cross-shard forwarding.
+    std::vector<proto::SnapshotVote> collected_votes;
+    std::unordered_set<uint64_t> voted_replicas;
     // uint64_t numSnapshotReplies;
     // std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
 
@@ -668,6 +673,18 @@ SQLTransformer *sql_interpreter;
   proto::PointQueryResultReply pointResult;
 
   proto::SyncClientProposal syncMsg;
+
+  // SS-CERT v2: most-recently-completed shard's SnapshotCert (>= 2f+1 votes
+  // assembled from per-replica SyncReply.vote()s). When this ShardClient is
+  // about to send its OWN SyncClientProposal, attach this cert as
+  // foreign_ss_cert so the recipient (this shard's replicas) can run
+  // VerifyForeignSSCert on it. Caveat: in v2 the cert is from the SAME group,
+  // so verification will succeed (proves the wire path is alive) but does
+  // not yet exercise true cross-shard authority — Tier-2 multi-shard client
+  // wiring (cross-ShardClient cert sharing via the parent Client) is the
+  // next step.
+  proto::SnapshotCert last_completed_cert_;
+  bool has_last_completed_cert_ = false;
 };
 
 } // namespace pequinstore

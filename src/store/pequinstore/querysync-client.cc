@@ -20,6 +20,7 @@
  **********************************************************************/
 
 #include "store/pequinstore/shardclient.h"
+#include "lib/blake3.h"
 
 #include <google/protobuf/util/message_differencer.h>
 
@@ -314,6 +315,36 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
         local_ss = SyncReply.mutable_local_ss();
     }
 
+    // SS-CERT v2: harvest the replica's SnapshotVote, dedup by replica_id,
+    // and assemble a SnapshotCert when 2f+1 distinct votes are in.
+    if (SyncReply.has_vote()) {
+        const proto::SnapshotVote &v = SyncReply.vote();
+        if (pendingQuery->voted_replicas.insert(v.replica_id()).second) {
+            pendingQuery->collected_votes.push_back(v);
+
+            uint64_t need = 2 * static_cast<uint64_t>(config->GroupF(group)) + 1;
+            if (pendingQuery->collected_votes.size() >= need && !has_last_completed_cert_) {
+                last_completed_cert_.Clear();
+                last_completed_cert_.set_group_id(static_cast<uint64_t>(group));
+                last_completed_cert_.set_membership_version(1);
+                // Snapshot digest: same scheme as server (BLAKE3 of LocalSnapshot bytes).
+                std::string ss_bytes;
+                local_ss->SerializeToString(&ss_bytes);
+                uint8_t digest[32];
+                blake3_hasher h;
+                blake3_hasher_init(&h);
+                blake3_hasher_update(&h, ss_bytes.data(), ss_bytes.size());
+                blake3_hasher_finalize(&h, digest, 32);
+                last_completed_cert_.set_snapshot_digest(
+                    std::string(reinterpret_cast<char*>(digest), 32));
+                for (const auto &vv : pendingQuery->collected_votes) {
+                    *last_completed_cert_.add_votes() = vv;
+                }
+                has_last_completed_cert_ = true;
+            }
+        }
+    }
+
     ProcessSync(pendingQuery, local_ss);
 
     
@@ -510,6 +541,17 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 
     uint64_t total_msg = params.query_params.cacheReadSet? config->n : num_designated_replies;
     UW_ASSERT(total_msg <= closestReplicas.size());
+
+    // SS-CERT v2: if we've assembled a SnapshotCert from a previous query
+    // (>= 2f+1 votes from this shard), attach it as foreign_ss_cert. The
+    // recipient replicas will run VerifyForeignSSCert on it, exercising the
+    // verifier path on real wire traffic. (Cross-shard cert sharing via the
+    // parent Client object is the next refinement; for now this is a
+    // same-shard cert, but the verifier doesn't care about origin shard
+    // beyond looking up the matching membership cert.)
+    if (has_last_completed_cert_) {
+        *syncMsg.mutable_foreign_ss_cert() = last_completed_cert_;
+    }
 
     for (size_t i = 0; i < total_msg; ++i) {
         syncMsg.set_designated_for_reply(i < num_designated_replies); //only designate num_designated_replies many replicas for exec replies.

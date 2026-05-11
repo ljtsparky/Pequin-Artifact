@@ -430,11 +430,10 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     query_md->snapshot_mgr.SealLocalSnapshot(); //Remove duplicate ids and compress if applicable.
     q.release();
 
-    // 2.9) SS-CERT v1: generate a SnapshotVote on the LocalSnapshot we're about
-    // to send. This exercises the GenerateSnapshotVote path on every real query
-    // reply (not synthetic). The vote is currently dropped — it's not yet
-    // attached to the wire (would need extending SyncReply proto). Counter-only
-    // so we can observe the rate. v2 wiring will attach + collect on client.
+    // 2.9) SS-CERT v2: generate a SnapshotVote on the LocalSnapshot we're about
+    // to send AND attach it to the SyncReply via the new `vote` field. Client
+    // collects 2f+1 such votes per shard, packages into a SnapshotCert, and
+    // forwards as `foreign_ss_cert` on the next cross-shard SyncClientProposal.
     {
         std::string ss_bytes;
         local_ss->SerializeToString(&ss_bytes);
@@ -444,10 +443,9 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
         blake3_hasher_update(&hasher, ss_bytes.data(), ss_bytes.size());
         blake3_hasher_finalize(&hasher, digest, BLAKE3_OUT_LEN);
         std::string digest_str(reinterpret_cast<char*>(digest), BLAKE3_OUT_LEN);
-        proto::SnapshotVote vote;
-        GenerateSnapshotVote(digest_str, &vote);
+        GenerateSnapshotVote(digest_str, syncReply->mutable_vote());
         stats.Increment("ss_cert_generations_done", 1);
-        // Vote dropped — v1 does not attach to wire. v2 will add to SyncReply.
+        stats.Increment("ss_cert_votes_attached", 1);
     }
 
     // 3) Send Snapshot in SyncReply

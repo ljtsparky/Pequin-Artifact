@@ -156,6 +156,10 @@ message SyncReply {
     SignedMessage signed_local_ss = 3;
   }
   optional bool optimistic_tx_id = 4; //not part of protocol (hence not signed), just a system flag.
+  // SS-CERT v2: replica's signed vote on the snapshot it returned, so the
+  // client can collect 2f+1 votes and assemble a SnapshotCert to forward
+  // to other shards as `foreign_ss_cert` on a follow-up SyncClientProposal.
+  optional SnapshotVote vote = 5;
 }
 
 message ReplicaList {
