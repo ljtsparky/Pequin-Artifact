@@ -2942,6 +2942,10 @@ void Server::GenerateSnapshotVote(const std::string &snapshotDigest,
   vote->set_replica_id(static_cast<uint64_t>(id));
   vote->set_signature(
       crypto::Sign(keyManager->GetPrivateKey(id), snapshotDigest));
+  // Embed the exact bytes we signed so the client can reuse them as
+  // cert.snapshot_digest without re-serializing the snapshot (protobuf
+  // serialization is not canonical and client-recompute would mismatch).
+  vote->set_signed_digest(snapshotDigest);
 }
 
 bool Server::VerifyForeignSSCert(const proto::SnapshotCert &cert) {

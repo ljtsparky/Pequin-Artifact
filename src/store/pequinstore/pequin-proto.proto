@@ -461,9 +461,14 @@ message ShardMembershipCert {
 }
 
 // A single replica's vote on a snapshot (used to build SnapshotCert).
+// signed_digest is the EXACT bytes the replica signed — included so the
+// client can use it as cert.snapshot_digest without re-serializing the
+// snapshot (protobuf serialization is non-canonical for repeated/map fields,
+// so client-recompute can differ from what the server actually signed).
 message SnapshotVote {
   required uint64 replica_id = 1;        // globally unique replica ID of the voter
-  required bytes signature = 2;          // Ed25519 sign(snapshot_digest [|| result_hash])
+  required bytes signature = 2;          // Ed25519 sign(signed_digest [|| result_hash])
+  optional bytes signed_digest = 3;      // exact digest the signature is over
 }
 
 // Cross-Shard Snapshot Certificate: collection of 2f+1 SnapshotVotes from

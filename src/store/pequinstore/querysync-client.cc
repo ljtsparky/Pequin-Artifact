@@ -324,23 +324,29 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
 
             uint64_t need = 2 * static_cast<uint64_t>(config->GroupF(group)) + 1;
             if (pendingQuery->collected_votes.size() >= need && !has_last_completed_cert_) {
+                // Use the FIRST vote's signed_digest as cert.snapshot_digest
+                // (server embeds it in vote.signed_digest so we don't have to
+                // re-serialize the snapshot — protobuf serialization is not
+                // canonical and client-recompute would mismatch). Only use
+                // votes whose signed_digest matches the first one (otherwise
+                // we'd be claiming consensus on something the replicas didn't
+                // actually agree on).
                 last_completed_cert_.Clear();
                 last_completed_cert_.set_group_id(static_cast<uint64_t>(group));
                 last_completed_cert_.set_membership_version(1);
-                // Snapshot digest: same scheme as server (BLAKE3 of LocalSnapshot bytes).
-                std::string ss_bytes;
-                local_ss->SerializeToString(&ss_bytes);
-                uint8_t digest[32];
-                blake3_hasher h;
-                blake3_hasher_init(&h);
-                blake3_hasher_update(&h, ss_bytes.data(), ss_bytes.size());
-                blake3_hasher_finalize(&h, digest, 32);
-                last_completed_cert_.set_snapshot_digest(
-                    std::string(reinterpret_cast<char*>(digest), 32));
+                const std::string &chosen_digest =
+                    pendingQuery->collected_votes.front().signed_digest();
+                last_completed_cert_.set_snapshot_digest(chosen_digest);
+                size_t added = 0;
                 for (const auto &vv : pendingQuery->collected_votes) {
-                    *last_completed_cert_.add_votes() = vv;
+                    if (vv.signed_digest() == chosen_digest) {
+                        *last_completed_cert_.add_votes() = vv;
+                        if (++added >= need) break;
+                    }
                 }
-                has_last_completed_cert_ = true;
+                if (added >= need) {
+                    has_last_completed_cert_ = true;
+                }
             }
         }
     }
