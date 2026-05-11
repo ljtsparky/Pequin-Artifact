@@ -23,8 +23,19 @@
 #include "lib/blake3.h"
 
 #include <google/protobuf/util/message_differencer.h>
+#include <gflags/gflags.h>
 
 #include "store/pequinstore/common.h"
+
+// T13 adversarial flag. When non-"none", mutate last_completed_cert_ on the
+// way out so the recipient should REJECT it. Verifier behavior under each
+// case:
+//   one_vote   - drop all but the first vote (size < 2f+1)
+//   wrong_sig  - flip a bit in vote signature (Verify() fails)
+//   wrong_group- set cert.group_id to a non-existent group (MembershipManager
+//                returns nullptr, VerifyForeignSSCert returns false)
+DEFINE_string(pequin_inject_bad_ss_cert, "none",
+    "Cert mutation for SS-CERT adversarial test: none | one_vote | wrong_sig | wrong_group");
 
 namespace pequinstore {
 
@@ -560,7 +571,22 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     // same-shard cert, but the verifier doesn't care about origin shard
     // beyond looking up the matching membership cert.)
     if (has_last_completed_cert_) {
-        *syncMsg.mutable_foreign_ss_cert() = last_completed_cert_;
+        proto::SnapshotCert outgoing = last_completed_cert_;
+        // T13 adversarial: optionally mutate cert to provoke verifier rejection.
+        if (FLAGS_pequin_inject_bad_ss_cert == "one_vote") {
+            while (outgoing.votes_size() > 1) outgoing.mutable_votes()->RemoveLast();
+            if (stats) stats->Increment("client_cert_injected_one_vote", 1);
+        } else if (FLAGS_pequin_inject_bad_ss_cert == "wrong_sig" &&
+                   outgoing.votes_size() > 0) {
+            std::string sig = outgoing.votes(0).signature();
+            if (!sig.empty()) sig[0] ^= 0x01;  // flip a bit
+            outgoing.mutable_votes(0)->set_signature(sig);
+            if (stats) stats->Increment("client_cert_injected_wrong_sig", 1);
+        } else if (FLAGS_pequin_inject_bad_ss_cert == "wrong_group") {
+            outgoing.set_group_id(99999);  // no such group
+            if (stats) stats->Increment("client_cert_injected_wrong_group", 1);
+        }
+        *syncMsg.mutable_foreign_ss_cert() = outgoing;
         if (stats) stats->Increment("client_cert_attached", 1);
     } else {
         if (stats) stats->Increment("client_cert_not_yet_built", 1);
