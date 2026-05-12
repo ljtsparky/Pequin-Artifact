@@ -27,8 +27,62 @@
 #include "store/benchmark/async/sql/tpcc/new_order.h"
 
 #include <fmt/core.h>
+#include <fstream>
+#include <mutex>
+#include <chrono>
+#include <atomic>
+#include <set>
+#include <gflags/gflags.h>
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
+
+DECLARE_string(elle_history_path);
+DECLARE_uint64(client_id);
+
+namespace {
+// Elle history logger for TPC-C NewOrder. Emits per-txn :invoke/:ok/:fail
+// records mapped onto the list-append model. The "key" is `w-<warehouse_id>`
+// and the appended "value" is a globally-unique txn_value derived from
+// (client_id, per-client sequence). This lets real Elle detect cross-shard
+// ordering anomalies: if warehouse 3 sees [t1,t2] and warehouse 7 sees
+// [t2,t1] for txns that touched both, that's a G2 cycle.
+std::ofstream g_elle_log;
+std::mutex g_elle_mu;
+bool g_elle_inited = false;
+std::atomic<uint64_t> g_seq{0};
+
+void EllInit() {
+  std::lock_guard<std::mutex> lk(g_elle_mu);
+  if (g_elle_inited) return;
+  g_elle_inited = true;
+  if (FLAGS_elle_history_path.empty()) return;
+  g_elle_log.open(FLAGS_elle_history_path, std::ios::out | std::ios::trunc);
+}
+
+uint64_t EllNowNs() {
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+void EllEmit(const std::string &type, uint64_t process,
+             const std::string &ops_json) {
+  if (FLAGS_elle_history_path.empty()) return;
+  EllInit();
+  if (!g_elle_log.is_open()) return;
+  std::lock_guard<std::mutex> lk(g_elle_mu);
+  g_elle_log << "{\"type\":\"" << type << "\",\"process\":" << process
+             << ",\"time\":" << EllNowNs()
+             << ",\"value\":[" << ops_json << "]}\n";
+  g_elle_log.flush();
+}
+
+uint64_t NextTxnValue() {
+  // Globally unique 31-bit value: top 7 bits client_id, low 24 bits seq.
+  // Matches the rw-sql cap from commit 17bb4c05 to avoid INT32 overflow.
+  uint64_t s = g_seq.fetch_add(1);
+  return ((FLAGS_client_id & 0x7F) << 24) | (s & 0xFFFFFF);
+}
+} // namespace
 
 namespace tpcc_sql {
 
@@ -98,6 +152,21 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   Debug("NEW_ORDER (parallel)"); 
   
   Debug("Warehouse: %u", w_id);
+
+  // P1: Elle history — record every warehouse this NewOrder touches as an
+  // append. Built from pre-computed o_ol_supply_w_ids + the home w_id.
+  uint64_t txn_value = NextTxnValue();
+  std::set<uint32_t> warehouses_touched{w_id};
+  for (auto wid : o_ol_supply_w_ids) warehouses_touched.insert(wid);
+  std::string ops;
+  bool first = true;
+  for (uint32_t wid : warehouses_touched) {
+    if (!first) ops += ",";
+    first = false;
+    ops += "[\"append\",\"w-" + std::to_string(wid) + "\"," +
+           std::to_string(txn_value) + "]";
+  }
+  EllEmit("invoke", FLAGS_client_id, ops);
 
   client.Begin(timeout);
 
@@ -179,6 +248,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     if (results[ol_number]->empty()) {  // (4.5) If not found codition -> Abort and rollback TX.
       client.Abort(timeout);
+      EllEmit("fail", FLAGS_client_id, ops);
       return ABORTED_USER;
     } else {
       ItemRow i_row;
@@ -260,7 +330,9 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   client.asyncWait();
 
   Debug("COMMIT");
-  return client.Commit(timeout);
+  transaction_status_t st = client.Commit(timeout);
+  EllEmit(st == COMMITTED ? "ok" : "fail", FLAGS_client_id, ops);
+  return st;
 }
 
 } // namespace tpcc_sql
