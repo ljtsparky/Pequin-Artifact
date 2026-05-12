@@ -49,6 +49,7 @@
 #include <valgrind/memcheck.h>
 
 #include "store/common/query_result/query_result_proto_builder.h"
+#include <gflags/gflags.h>
 
 DECLARE_bool(pequin_twin_replica);
 
