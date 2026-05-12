@@ -2124,6 +2124,18 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string *txnDige
       else if (msg->decision() == proto::COMMIT) {
         stats.Increment("total_transactions", 1);
         stats.Increment("total_transactions_commit", 1);
+        // P2 audit: per-txn commit log line so a post-hoc script can cross-check
+        // shard A vs shard B for cross-shard atomicity. Format is greppable.
+        {
+            std::string ig;
+            for (int gi = 0; gi < txn->involved_groups_size(); gi++) {
+                if (gi > 0) ig += ",";
+                ig += std::to_string(txn->involved_groups(gi));
+            }
+            Notice("L2_AUDIT_COMMIT g=%d r=%d txn=%s involved=[%s]",
+                   groupIdx, idx,
+                   BytesToHex(*txnDigest, 16).c_str(), ig.c_str());
+        }
         Debug("WRITEBACK[%s] successfully committing.", BytesToHex(*txnDigest, 16).c_str());
         bool p1Sigs = msg->has_p1_sigs();
         uint64_t view = -1;
