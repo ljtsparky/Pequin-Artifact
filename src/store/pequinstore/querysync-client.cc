@@ -570,8 +570,21 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     // parent Client object is the next refinement; for now this is a
     // same-shard cert, but the verifier doesn't care about origin shard
     // beyond looking up the matching membership cert.)
-    if (has_last_completed_cert_) {
-        proto::SnapshotCert outgoing = last_completed_cert_;
+    // SS-CERT cert selection: prefer v3 (content-bound) if available, fall
+    // back to v2.3 (query-identity). Tracks which one we shipped via
+    // distinct counters so we can show the v3 promotion rate.
+    bool has_outgoing = false;
+    proto::SnapshotCert outgoing;
+    if (has_last_completed_cert_v3_) {
+        outgoing = last_completed_cert_v3_;
+        has_outgoing = true;
+        if (stats) stats->Increment("client_cert_v3_attached", 1);
+    } else if (has_last_completed_cert_) {
+        outgoing = last_completed_cert_;
+        has_outgoing = true;
+        if (stats) stats->Increment("client_cert_v23_attached", 1);
+    }
+    if (has_outgoing) {
         // T13 adversarial: optionally mutate cert to provoke verifier rejection.
         if (FLAGS_pequin_inject_bad_ss_cert == "one_vote") {
             while (outgoing.votes_size() > 1) outgoing.mutable_votes()->RemoveLast();
@@ -658,6 +671,39 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     }
 
     Debug("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
+
+    // SS-CERT v3: harvest content-bound vote from QueryResultReply.v3_vote.
+    // Build cert in last_completed_cert_v3_ once 2f+1 same-digest votes
+    // arrive. v3 cert is preferred over v2.3 cert in SyncReplicas because
+    // it actually attests to the query result, not just query identity.
+    if (queryResult.has_v3_vote()) {
+        const proto::SnapshotVote &v = queryResult.v3_vote();
+        if (stats) stats->Increment("client_v3_vote_received", 1);
+        if (pendingQuery->v3_voted_replicas.insert(v.replica_id()).second) {
+            pendingQuery->v3_collected_votes.push_back(v);
+            uint64_t need = 2 * static_cast<uint64_t>(config->GroupF(group)) + 1;
+            if (pendingQuery->v3_collected_votes.size() >= need &&
+                !has_last_completed_cert_v3_) {
+                last_completed_cert_v3_.Clear();
+                last_completed_cert_v3_.set_group_id(static_cast<uint64_t>(group));
+                last_completed_cert_v3_.set_membership_version(1);
+                const std::string &chosen =
+                    pendingQuery->v3_collected_votes.front().signed_digest();
+                last_completed_cert_v3_.set_snapshot_digest(chosen);
+                size_t added = 0;
+                for (const auto &vv : pendingQuery->v3_collected_votes) {
+                    if (vv.signed_digest() == chosen) {
+                        *last_completed_cert_v3_.add_votes() = vv;
+                        if (++added >= need) break;
+                    }
+                }
+                if (added >= need) {
+                    has_last_completed_cert_v3_ = true;
+                    if (stats) stats->Increment("client_cert_v3_built", 1);
+                }
+            }
+        }
+    }
 
     //3) check whether replica in group.
     if (!IsReplicaInGroup(replica_result->replica_id(), group, config)) {

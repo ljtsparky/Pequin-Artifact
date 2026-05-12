@@ -307,6 +307,10 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     // ShardClient (last_completed_cert_) for cross-shard forwarding.
     std::vector<proto::SnapshotVote> collected_votes;
     std::unordered_set<uint64_t> voted_replicas;
+    // SS-CERT v3: same shape but votes come from QueryResultReply.v3_vote
+    // (signed over query result hash, not just query identity).
+    std::vector<proto::SnapshotVote> v3_collected_votes;
+    std::unordered_set<uint64_t> v3_voted_replicas;
     // uint64_t numSnapshotReplies;
     // std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
 
@@ -685,6 +689,9 @@ SQLTransformer *sql_interpreter;
   // next step.
   proto::SnapshotCert last_completed_cert_;
   bool has_last_completed_cert_ = false;
+  // SS-CERT v3: content-bound cert (preferred over v2.3 when available)
+  proto::SnapshotCert last_completed_cert_v3_;
+  bool has_last_completed_cert_v3_ = false;
 };
 
 } // namespace pequinstore

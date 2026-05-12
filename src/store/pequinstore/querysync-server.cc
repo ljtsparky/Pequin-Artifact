@@ -842,7 +842,31 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     bool testing_hash = false; //note, if this is on, the client will crash since it expects a read set but does not get one.
     if(testing_hash || params.query_params.cacheReadSet) CacheReadSet(query_md, result, query_read_set);
 
-
+    // 3.5) SS-CERT v3: content-bound vote. Sign over query identity AND
+    // query_result_hash so the cert actually attests "2f+1 replicas of group
+    // G computed the same result for query Q". A byzantine replica that
+    // doesn't run the query can't produce the right hash. v2.3 (in
+    // ProcessQuery -> SyncReply) is now superseded by this content-bound v3
+    // vote; we keep both for transition + comparison.
+    if (result->has_query_result_hash()) {
+        uint64_t qseq = query_md->query_seq_num;
+        uint64_t qcli = query_md->client_id;
+        uint64_t qver = query_md->retry_version;
+        uint64_t qgrp = static_cast<uint64_t>(groupIdx);
+        const std::string &rhash = result->query_result_hash();
+        uint8_t digest[BLAKE3_OUT_LEN];
+        blake3_hasher h;
+        blake3_hasher_init(&h);
+        blake3_hasher_update(&h, &qseq, sizeof(qseq));
+        blake3_hasher_update(&h, &qcli, sizeof(qcli));
+        blake3_hasher_update(&h, &qver, sizeof(qver));
+        blake3_hasher_update(&h, &qgrp, sizeof(qgrp));
+        blake3_hasher_update(&h, rhash.data(), rhash.size());
+        blake3_hasher_finalize(&h, digest, BLAKE3_OUT_LEN);
+        std::string digest_str(reinterpret_cast<char*>(digest), BLAKE3_OUT_LEN);
+        GenerateSnapshotVote(digest_str, queryResultReply->mutable_v3_vote());
+        stats.Increment("ss_cert_v3_votes_attached", 1);
+    }
 
     //4) Create Result reply --  // only send if chosen for reply
     if(!query_md->designated_for_reply) return;

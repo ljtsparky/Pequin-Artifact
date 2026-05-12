@@ -98,6 +98,14 @@ message QueryResultReply {
     }
 
     optional CommittedProof point_proof = 5; //For point read
+
+    // SS-CERT v3: replica's content-bound vote, signed over
+    // BLAKE3(query_seq || client_id || retry_ver || group_id || query_result_hash).
+    // Client collects 2f+1 same-digest votes from QueryResultReply messages
+    // and assembles a SnapshotCert that ACTUALLY witnesses the query result.
+    // A byzantine replica that doesn't compute the result can't fake the
+    // hash, so this is a real safety claim (vs v2.3 which was liveness-only).
+    optional SnapshotVote v3_vote = 6;
 }
 
 
