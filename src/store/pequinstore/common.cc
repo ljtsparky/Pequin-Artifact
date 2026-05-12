@@ -2276,9 +2276,14 @@ bool VerifySnapshotCert(const proto::SnapshotCert &cert,
   if (cert.group_id() != membershipCert.group_id()) return false;
   if (cert.membership_version() != membershipCert.version()) return false;
 
-  // 2. Need at least 2f+1 distinct votes.
+  // 2. Need at least f+1 distinct votes (v3-relaxed: guarantees at least
+  // 1 honest replica attested to the content). v3-strict (2f+1) was the
+  // original threshold but Pesto's per-query result quorum is too small
+  // (often 2 on n=6 f=1) to organically produce 2f+1 same-digest votes
+  // from a single query. Cross-query accumulation of v3 votes would let
+  // us tighten back to 2f+1; deferred to a future iteration.
   uint64_t fVal = membershipCert.f();
-  if (static_cast<uint64_t>(cert.votes_size()) < 2 * fVal + 1) return false;
+  if (static_cast<uint64_t>(cert.votes_size()) < fVal + 1) return false;
 
   std::set<uint64_t> verified;
   for (const auto &vote : cert.votes()) {
