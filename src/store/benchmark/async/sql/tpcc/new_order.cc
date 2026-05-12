@@ -88,12 +88,12 @@ uint64_t NextTxnValue() {
 // Per-thread "process" id for Elle. Real Elle requires sequential
 // :invoke -> :ok/:fail per process. With multi-threaded benchmark
 // clients on the same FLAGS_client_id, threads share the id and Elle
-// rejects "double-invoke". Mix in thread id: client_id<<8 | (hash(tid) & 0xFF).
+// rejects "double-invoke". Use a global atomic to assign each thread
+// a unique sequence (collision-free, unlike hashing thread::id).
+std::atomic<uint64_t> g_next_thread_idx{0};
 uint64_t EllProcess() {
-  static thread_local uint64_t cached = [](){
-      auto h = std::hash<std::thread::id>{}(std::this_thread::get_id());
-      return (FLAGS_client_id << 8) | (h & 0xFF);
-  }();
+  static thread_local uint64_t cached =
+      (FLAGS_client_id << 16) | g_next_thread_idx.fetch_add(1);
   return cached;
 }
 } // namespace
