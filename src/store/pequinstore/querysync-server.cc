@@ -50,6 +50,8 @@
 
 #include "store/common/query_result/query_result_proto_builder.h"
 
+DECLARE_bool(pequin_twin_replica);
+
 namespace pequinstore {
 
    
