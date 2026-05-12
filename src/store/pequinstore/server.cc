@@ -2965,6 +2965,7 @@ void Server::HandleFrontierRequest(const TransportAddress &remote,
 
 void Server::GenerateSnapshotVote(const std::string &snapshotDigest,
     proto::SnapshotVote *vote) {
+  auto t0 = std::chrono::steady_clock::now();
   vote->set_replica_id(static_cast<uint64_t>(id));
   vote->set_signature(
       crypto::Sign(keyManager->GetPrivateKey(id), snapshotDigest));
@@ -2972,6 +2973,10 @@ void Server::GenerateSnapshotVote(const std::string &snapshotDigest,
   // cert.snapshot_digest without re-serializing the snapshot (protobuf
   // serialization is not canonical and client-recompute would mismatch).
   vote->set_signed_digest(snapshotDigest);
+  auto t1 = std::chrono::steady_clock::now();
+  auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+  stats.Increment("ss_cert_vote_sign_micros_total", static_cast<uint64_t>(us));
+  stats.Increment("ss_cert_vote_sign_count", 1);
 }
 
 bool Server::VerifyForeignSSCert(const proto::SnapshotCert &cert) {
@@ -2982,7 +2987,13 @@ bool Server::VerifyForeignSSCert(const proto::SnapshotCert &cert) {
     Debug("No membership cert for group %lu", cert.group_id());
     return false;
   }
-  return VerifySnapshotCert(cert, *membershipCert, keyManager);
+  auto t0 = std::chrono::steady_clock::now();
+  bool ok = VerifySnapshotCert(cert, *membershipCert, keyManager);
+  auto t1 = std::chrono::steady_clock::now();
+  auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+  stats.Increment("ss_cert_verify_micros_total", static_cast<uint64_t>(us));
+  stats.Increment("ss_cert_verify_count", 1);
+  return ok;
 }
 
 } // namespace pequinstore
