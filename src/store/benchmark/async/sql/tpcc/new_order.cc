@@ -96,6 +96,25 @@ uint64_t EllProcess() {
       (FLAGS_client_id << 16) | g_next_thread_idx.fetch_add(1);
   return cached;
 }
+
+// RAII guard: emits :invoke at construction; emits :ok/:fail at Resolve();
+// if Execute() returns/throws without resolving, the destructor emits :info
+// (uncertain). Guarantees every :invoke has a matching companion event so
+// real Elle's "double-invoke" check passes.
+struct EllGuard {
+    std::string ops;
+    uint64_t process;
+    bool resolved = false;
+    EllGuard(const std::string &o, uint64_t p) : ops(o), process(p) {
+        EllEmit("invoke", p, o);
+    }
+    void Resolve(const char *type) {
+        if (!resolved) { EllEmit(type, process, ops); resolved = true; }
+    }
+    ~EllGuard() {
+        if (!resolved) EllEmit("info", process, ops);
+    }
+};
 } // namespace
 
 namespace tpcc_sql {
@@ -180,7 +199,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
     ops += "[\"append\",\"w-" + std::to_string(wid) + "\"," +
            std::to_string(txn_value) + "]";
   }
-  EllEmit("invoke", EllProcess(), ops);
+  EllGuard ell_guard(ops, EllProcess());
 
   client.Begin(timeout);
 
@@ -262,7 +281,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     if (results[ol_number]->empty()) {  // (4.5) If not found codition -> Abort and rollback TX.
       client.Abort(timeout);
-      EllEmit("fail", EllProcess(), ops);
+      ell_guard.Resolve("fail");
       return ABORTED_USER;
     } else {
       ItemRow i_row;
@@ -345,7 +364,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   Debug("COMMIT");
   transaction_status_t st = client.Commit(timeout);
-  EllEmit(st == COMMITTED ? "ok" : "fail", EllProcess(), ops);
+  ell_guard.Resolve(st == COMMITTED ? "ok" : "fail");
   return st;
 }
 
