@@ -32,6 +32,8 @@
 #include <chrono>
 #include <atomic>
 #include <set>
+#include <thread>
+#include <functional>
 #include <gflags/gflags.h>
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
@@ -81,6 +83,18 @@ uint64_t NextTxnValue() {
   // Matches the rw-sql cap from commit 17bb4c05 to avoid INT32 overflow.
   uint64_t s = g_seq.fetch_add(1);
   return ((FLAGS_client_id & 0x7F) << 24) | (s & 0xFFFFFF);
+}
+
+// Per-thread "process" id for Elle. Real Elle requires sequential
+// :invoke -> :ok/:fail per process. With multi-threaded benchmark
+// clients on the same FLAGS_client_id, threads share the id and Elle
+// rejects "double-invoke". Mix in thread id: client_id<<8 | (hash(tid) & 0xFF).
+uint64_t EllProcess() {
+  static thread_local uint64_t cached = [](){
+      auto h = std::hash<std::thread::id>{}(std::this_thread::get_id());
+      return (FLAGS_client_id << 8) | (h & 0xFF);
+  }();
+  return cached;
 }
 } // namespace
 
@@ -166,7 +180,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
     ops += "[\"append\",\"w-" + std::to_string(wid) + "\"," +
            std::to_string(txn_value) + "]";
   }
-  EllEmit("invoke", FLAGS_client_id, ops);
+  EllEmit("invoke", EllProcess(), ops);
 
   client.Begin(timeout);
 
@@ -248,7 +262,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     if (results[ol_number]->empty()) {  // (4.5) If not found codition -> Abort and rollback TX.
       client.Abort(timeout);
-      EllEmit("fail", FLAGS_client_id, ops);
+      EllEmit("fail", EllProcess(), ops);
       return ABORTED_USER;
     } else {
       ItemRow i_row;
@@ -331,7 +345,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   Debug("COMMIT");
   transaction_status_t st = client.Commit(timeout);
-  EllEmit(st == COMMITTED ? "ok" : "fail", FLAGS_client_id, ops);
+  EllEmit(st == COMMITTED ? "ok" : "fail", EllProcess(), ops);
   return st;
 }
 
