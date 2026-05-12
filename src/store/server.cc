@@ -404,6 +404,7 @@ DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w
 //TODO: Active Snapshot set (optional), false
 DEFINE_bool(pequin_simulate_replica_failure, false, "simulate failure at replica 0");
 DEFINE_bool(pequin_simulate_inconsistency, false, "skip applying writes at 2 out of 6 replicas to create inconsistent state that requires sync.");
+DEFINE_bool(pequin_drop_cross_shard_writeback, false, "P5: byz mode that silently drops Phase2/Writeback for cross-shard txns. Used to test L2 atomicity defense + audit catch.");
 DEFINE_bool(pequin_disable_prepare_visibility, false, "do not make prepared writes visible.");
 
 //Baseline settings

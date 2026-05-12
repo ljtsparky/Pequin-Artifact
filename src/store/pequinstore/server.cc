@@ -1938,6 +1938,18 @@ void Server::HandleWriteback(const TransportAddress &remote,
                              proto::Writeback &msg) {
 
   stats.Increment("total_writeback_received", 1);
+
+  // P5 byzantine: silently drop Phase2/Writeback for cross-shard txns.
+  // Tests whether (a) Pesto's per-shard quorum still produces a complete
+  // writeback at OTHER honest replicas of this shard (so atomicity holds
+  // within budget), and (b) our L2 audit catches any partial commit if
+  // we exceed the budget by setting BYZ_PER_SHARD > f.
+  extern bool FLAGS_pequin_drop_cross_shard_writeback;
+  if (FLAGS_pequin_drop_cross_shard_writeback && msg.has_txn() &&
+      msg.txn().involved_groups_size() > 1) {
+    stats.Increment("byz_xshard_writeback_dropped", 1);
+    return;
+  }
   // simulating failures in local experiment
   //  fail_writeback++;
   //  if(fail_writeback %2 == 1){
