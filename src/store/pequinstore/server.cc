@@ -2963,6 +2963,24 @@ void Server::HandleFrontierRequest(const TransportAddress &remote,
   transport->SendMessage(this, remote, reply);
 }
 
+// Bucket boundaries (in microseconds). Increment "<name>_us_lt_<B>" for the
+// smallest B that exceeds the measured us. With 9 buckets [50, 100, 200, 500,
+// 1000, 2000, 5000, 10000, ∞] we get a coarse histogram cheap enough to keep
+// always-on.
+static inline void incr_us_bucket(Stats &s, const char *prefix, uint64_t us) {
+  static const uint64_t edges[] = {50, 100, 200, 500, 1000, 2000, 5000, 10000};
+  char buf[64];
+  for (uint64_t e : edges) {
+    if (us < e) {
+      snprintf(buf, sizeof(buf), "%s_us_lt_%lu", prefix, (unsigned long)e);
+      s.Increment(buf, 1);
+      return;
+    }
+  }
+  snprintf(buf, sizeof(buf), "%s_us_lt_inf", prefix);
+  s.Increment(buf, 1);
+}
+
 void Server::GenerateSnapshotVote(const std::string &snapshotDigest,
     proto::SnapshotVote *vote) {
   auto t0 = std::chrono::steady_clock::now();
@@ -2977,6 +2995,7 @@ void Server::GenerateSnapshotVote(const std::string &snapshotDigest,
   auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
   stats.Increment("ss_cert_vote_sign_micros_total", static_cast<uint64_t>(us));
   stats.Increment("ss_cert_vote_sign_count", 1);
+  incr_us_bucket(stats, "ss_cert_vote_sign", static_cast<uint64_t>(us));
 }
 
 bool Server::VerifyForeignSSCert(const proto::SnapshotCert &cert) {
@@ -2993,6 +3012,7 @@ bool Server::VerifyForeignSSCert(const proto::SnapshotCert &cert) {
   auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
   stats.Increment("ss_cert_verify_micros_total", static_cast<uint64_t>(us));
   stats.Increment("ss_cert_verify_count", 1);
+  incr_us_bucket(stats, "ss_cert_verify", static_cast<uint64_t>(us));
   return ok;
 }
 
