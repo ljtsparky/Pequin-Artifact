@@ -43,6 +43,8 @@
 
 // P5: defined in store/server.cc, referenced here in HandleWriteback.
 DECLARE_bool(pequin_drop_cross_shard_writeback);
+// P7: Twins equivocation flag (perturb result_hash before signing v3 vote).
+DECLARE_bool(pequin_twin_replica);
 #include "lib/batched_sigs.h"
 #include "lib/tcptransport.h"
 #include "store/pequinstore/basicverifier.h"

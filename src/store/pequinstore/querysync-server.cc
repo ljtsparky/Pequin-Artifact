@@ -853,7 +853,17 @@ void Server::SendQueryReply(QueryMetaData *query_md){
         uint64_t qcli = query_md->client_id;
         uint64_t qver = query_md->retry_version;
         uint64_t qgrp = static_cast<uint64_t>(groupIdx);
-        const std::string &rhash = result->query_result_hash();
+        // P7 Twins equivocation: byz replica perturbs result_hash before
+        // signing so its v3 vote's digest differs from honest replicas.
+        // Same XOR pattern across all twin replicas so they can collude
+        // (all twins sign one common fake hash). Tests v3-strict majority
+        // selection's tolerance: f twins should be filtered, f+1 are
+        // boundary, > f+1 can win majority and forge the cert content.
+        std::string rhash = result->query_result_hash();
+        if (FLAGS_pequin_twin_replica && !rhash.empty()) {
+            for (size_t i = 0; i < rhash.size(); i++) rhash[i] ^= 0x5A;
+            stats.Increment("byz_twin_perturbations", 1);
+        }
         uint8_t digest[BLAKE3_OUT_LEN];
         blake3_hasher h;
         blake3_hasher_init(&h);
