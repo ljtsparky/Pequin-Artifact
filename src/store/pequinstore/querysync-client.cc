@@ -683,13 +683,11 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         if (stats) stats->Increment("client_v3_vote_received", 1);
         if (pendingQuery->v3_voted_replicas.insert(v.replica_id()).second) {
             pendingQuery->v3_collected_votes.push_back(v);
-            // v3-relaxed: f+1 instead of 2f+1. Pesto's resultQuorum is small
-            // (often 2 on n=6 f=1), so very few replicas reply to a single
-            // query — collecting 2f+1 same-digest votes per PendingQuery is
-            // rare. f+1 votes still guarantee at least 1 honest replica
-            // attested to this content. v3-strict (2f+1) requires cross-
-            // query accumulation, deferred to a future iteration.
-            uint64_t need = static_cast<uint64_t>(config->GroupF(group)) + 1;
+            // v3-strict: 2f+1 same-digest votes. Achievable when
+            // --pequin_query_messages=query-all so all n replicas reply
+            // with v3_vote. Guarantees an honest majority (f+1 of 2f+1)
+            // among signers — the classical BFT quorum property.
+            uint64_t need = 2 * static_cast<uint64_t>(config->GroupF(group)) + 1;
             if (pendingQuery->v3_collected_votes.size() >= need &&
                 !has_last_completed_cert_v3_) {
                 // Histogram: digest -> count
