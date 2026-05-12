@@ -673,9 +673,11 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     Debug("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
 
     // SS-CERT v3: harvest content-bound vote from QueryResultReply.v3_vote.
-    // Build cert in last_completed_cert_v3_ once 2f+1 same-digest votes
-    // arrive. v3 cert is preferred over v2.3 cert in SyncReplicas because
-    // it actually attests to the query result, not just query identity.
+    // Build cert when 2f+1 votes agree on the SAME signed_digest. Use a
+    // majority-digest selection (histogram) instead of the first vote's
+    // digest — different replicas may sign different content hashes for
+    // the same query if their snapshots differ; we need to pick the
+    // majority view.
     if (queryResult.has_v3_vote()) {
         const proto::SnapshotVote &v = queryResult.v3_vote();
         if (stats) stats->Increment("client_v3_vote_received", 1);
@@ -684,22 +686,36 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
             uint64_t need = 2 * static_cast<uint64_t>(config->GroupF(group)) + 1;
             if (pendingQuery->v3_collected_votes.size() >= need &&
                 !has_last_completed_cert_v3_) {
-                last_completed_cert_v3_.Clear();
-                last_completed_cert_v3_.set_group_id(static_cast<uint64_t>(group));
-                last_completed_cert_v3_.set_membership_version(1);
-                const std::string &chosen =
-                    pendingQuery->v3_collected_votes.front().signed_digest();
-                last_completed_cert_v3_.set_snapshot_digest(chosen);
-                size_t added = 0;
+                // Histogram: digest -> count
+                std::unordered_map<std::string, size_t> hist;
                 for (const auto &vv : pendingQuery->v3_collected_votes) {
-                    if (vv.signed_digest() == chosen) {
-                        *last_completed_cert_v3_.add_votes() = vv;
-                        if (++added >= need) break;
-                    }
+                    hist[vv.signed_digest()]++;
                 }
-                if (added >= need) {
-                    has_last_completed_cert_v3_ = true;
-                    if (stats) stats->Increment("client_cert_v3_built", 1);
+                const std::string *best = nullptr;
+                size_t best_count = 0;
+                for (const auto &kv : hist) {
+                    if (kv.second > best_count) { best_count = kv.second; best = &kv.first; }
+                }
+                if (stats) {
+                    stats->Increment("client_v3_quorum_attempted", 1);
+                    stats->Increment("client_v3_majority_size_sum", best_count);
+                }
+                if (best && best_count >= need) {
+                    last_completed_cert_v3_.Clear();
+                    last_completed_cert_v3_.set_group_id(static_cast<uint64_t>(group));
+                    last_completed_cert_v3_.set_membership_version(1);
+                    last_completed_cert_v3_.set_snapshot_digest(*best);
+                    size_t added = 0;
+                    for (const auto &vv : pendingQuery->v3_collected_votes) {
+                        if (vv.signed_digest() == *best) {
+                            *last_completed_cert_v3_.add_votes() = vv;
+                            if (++added >= need) break;
+                        }
+                    }
+                    if (added >= need) {
+                        has_last_completed_cert_v3_ = true;
+                        if (stats) stats->Increment("client_cert_v3_built", 1);
+                    }
                 }
             }
         }
