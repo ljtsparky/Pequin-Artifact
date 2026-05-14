@@ -1,0 +1,7 @@
+# lab_ssh.txt: one SSH command per node, in the order
+#   1..N_SHARDS*REPLICAS_PER_SHARD : server nodes (shard 0, shard 1, ...)
+#   rest : client nodes
+# Copy this template, rename to lab_ssh.txt, and fill in your CloudLab hostnames.
+ssh user@node-01.cloudlab.example
+ssh user@node-02.cloudlab.example
+# ... up to as many nodes as you allocated (18 for default n=6 f=1; 38 for f=3)

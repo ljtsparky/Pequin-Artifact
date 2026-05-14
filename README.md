@@ -1,4 +1,16 @@
 # BFT Query Processing -- Pesto Artifact 
+
+> **Note (CS 598 FTS course project fork):** This is a fork of the upstream
+> Pesto artifact. We removed Pesto's "sister-replica" trust assumption
+> and added cross-shard cryptographic certificates (Shard Membership
+> Certs + content-bound SS-CERT v3-STRICT). All our changes live on the
+> **`cross-shard-membership` branch**. See
+> [`cs598_project/README.md`](cs598_project/README.md) for the project
+> description, orchestration scripts, ~250 experiment outputs, and the
+> final report. The original Pesto README follows.
+
+---
+
 This is code artifact for the paper: "Pesto: Cooking up High Performance BFT Queries". (SOSP'25 paper 62)
 
 For all questions about the artifact please e-mail Florian Suri-Payer <fsp@cs.cornell.edu>. For specific questions about the following topics please additionally CC:
