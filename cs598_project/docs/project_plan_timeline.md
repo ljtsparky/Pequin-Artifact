@@ -49,11 +49,11 @@ HEAD at experiment time: `17bb4c05`. Total: 24 files / ~1 213 lines /
 
 | Capability | State |
 |-----------|------:|
-| Per-shard `n`/`f` parsing | ✅ working |
-| Per-shard quorum sizing on the protocol hot path | ✅ working |
-| Membership cert generation at server startup | ✅ working |
-| Membership cert verification (unit tests) | ✅ working |
-| Snapshot cert generation/verification on cross-shard hot path | 🟡 code exists, not wired into `querysync-server.cc` |
+| Per-shard `n`/`f` parsing | [OK] working |
+| Per-shard quorum sizing on the protocol hot path | [OK] working |
+| Membership cert generation at server startup | [OK] working |
+| Membership cert verification (unit tests) | [OK] working |
+| Snapshot cert generation/verification on cross-shard hot path | [in-progress] code exists, not wired into `querysync-server.cc` |
 
 ---
 

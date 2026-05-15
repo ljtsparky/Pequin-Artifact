@@ -249,16 +249,16 @@ maintained path and what we use for the 18-node evaluation.
 
 ## 5. Verdict from this stage
 
-✅ **Zero regression.** The new cross-shard code paths pass all 34 of
+[OK] **Zero regression.** The new cross-shard code paths pass all 34 of
 their own assertions, and our changes do not break any upstream component
 that was previously working.
 
-✅ **Build environment is complete.** Every test binary linked and ran
+[OK] **Build environment is complete.** Every test binary linked and ran
 (failures are at the application logic layer, not at dynamic-loader /
 missing-symbol level), confirming all dependencies in
 `/opt/dependencies/` and `/opt/pesto-deps/` are present.
 
-✅ **Image is safe to bake.** Proceed to CloudLab UI → "Create Disk
+[OK] **Image is safe to bake.** Proceed to CloudLab UI → "Create Disk
 Image" → overwrite `JiatongOttoUbuntu22.04-Pesto`.
 
 ---
@@ -321,18 +321,18 @@ present:
 
 | Installation.md requires | Our layout | Status |
 |--------------------------|-----------|--------|
-| libsodium / libgflags / libssl / libevent / libfmt | apt-installed | ✅ |
-| jemalloc | `/opt/dependencies/` | ✅ |
-| taopq | `/opt/pesto-deps/` | ✅ |
-| nlohmann/json | `/opt/pesto-deps/` | ✅ |
-| protobuf 3.5.1 | system | ✅ |
-| cryptopp 8.2 | system | ✅ |
-| secp256k1 | system | ✅ |
-| BLAKE3 | `/usr/local/lib/libblake3.so` | ✅ |
-| ed25519-donna | `/usr/local/lib/libed25519_donna.so` | ✅ |
-| Intel TBB (oneAPI) | `/opt/intel/oneapi/` (sourced via `/etc/bash.bashrc`) | ✅ |
-| Peloton third-party (libpg_query, libcuckoo, date, adaptive_radix_tree) | `/opt/pesto-deps/` | ✅ |
-| OpenJDK 11 (BFTSmart) | `/usr/lib/jvm/java-11-openjdk-amd64`, `LD_LIBRARY_PATH` set | ✅ |
+| libsodium / libgflags / libssl / libevent / libfmt | apt-installed | [OK] |
+| jemalloc | `/opt/dependencies/` | [OK] |
+| taopq | `/opt/pesto-deps/` | [OK] |
+| nlohmann/json | `/opt/pesto-deps/` | [OK] |
+| protobuf 3.5.1 | system | [OK] |
+| cryptopp 8.2 | system | [OK] |
+| secp256k1 | system | [OK] |
+| BLAKE3 | `/usr/local/lib/libblake3.so` | [OK] |
+| ed25519-donna | `/usr/local/lib/libed25519_donna.so` | [OK] |
+| Intel TBB (oneAPI) | `/opt/intel/oneapi/` (sourced via `/etc/bash.bashrc`) | [OK] |
+| Peloton third-party (libpg_query, libcuckoo, date, adaptive_radix_tree) | `/opt/pesto-deps/` | [OK] |
+| OpenJDK 11 (BFTSmart) | `/usr/lib/jvm/java-11-openjdk-amd64`, `LD_LIBRARY_PATH` set | [OK] |
 
 Hard evidence we are not missing a `.so`: every test binary actually
 runs — it gets to the application-level assertion / panic, which is only

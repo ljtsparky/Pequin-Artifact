@@ -102,7 +102,7 @@ Byz cost at f=2: < 2% throughput (well within Pesto's f tolerance).
 
 | Run | tput tx/s | P50 ms | P99 ms | verify µs | v3 verifications |
 |-----|----------:|-------:|-------:|----------:|-----------------:|
-| `T022842Z` | 273.9 | 22.3 | 26.3 | 1281 | 527 584 / 527 584 ✅ |
+| `T022842Z` | 273.9 | 22.3 | 26.3 | 1281 | 527 584 / 527 584 [OK] |
 
 **Crypto at f=3 vs f=1 (heterogeneous):** 1281 / 708 = 1.81× (theoretical worst case = 7/3 = 2.33×; batching saves the rest)
 

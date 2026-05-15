@@ -3,7 +3,7 @@
 **Date:** 2026-05-12
 **Code HEAD:** `cross-shard-membership` @ `ec177eb8`
 
-This document closes the audit raised earlier: *"正确性到底验证的怎么样了？"*
+This document closes the audit raised earlier: *"？"*
 After P1–P5 we have **L1 + L2 + L3 + L4 all green simultaneously on
 cross-shard TPC-C, under honest AND byzantine fault models**, plus a
 sound + complete adversarial verifier for SS-CERT v3.
@@ -22,22 +22,22 @@ sound + complete adversarial verifier for SS-CERT v3.
 
 | Run | Workload | Faults | L1 | L2 | L3 | L4 |
 |-----|----------|--------|----|----|----|----|
-| `20260512T033704Z` | TPC-C 10w honest | 0 | ✅ | ✅ 227/227 | n/a | self-test |
-| `20260512T034016Z` | TPC-C 10w byz omission 1/shard | 1 | ✅ | ✅ 213/213 | n/a | self-test |
-| `20260512T034301Z` | TPC-C 10w byz crash 1/shard | 1 | ✅ | ✅ 224/224 | n/a | self-test |
-| `20260512T051713Z` | TPC-C 10w honest **with Elle** | 0 | ✅ | ✅ 221/221 | ✅ valid? true | self-test |
-| `20260512T052106Z` | TPC-C 10w byz omission 1 **with Elle** | 1 | ✅ | ✅ 39/39 | ✅ valid? true | self-test |
-| `20260512T053900Z` | TPC-C 10w byz drop_xshard 1/shard | 1 | ✅ | ✅ 240/240 | n/a | self-test |
-| `20260512T054224Z` | TPC-C 10w byz drop_xshard 2/shard | 2 (over f) | ✅ | ✅ 218/218 | n/a | self-test |
-| `20260512T054607Z` | TPC-C 10w byz drop_xshard 3/shard | 3 (over f) | ✅ | ✅ 233/233 | n/a | self-test |
-| `20260512T065024Z` | rw-sql NT=2 sync-path honest (v3-relaxed) | 0 | ✅ | n/a (single-shard) | ✅ via mini_elle | 87 852 / 87 852 v3 cert pass |
-| `20260512T065344..065923Z` | rw-sql sync-path 3 inject modes (v3-relaxed) | T13 | ✅ | n/a | n/a | 0 OK / 210 594 FAIL across 3 modes (100% reject) |
-| `20260512T073154Z` | **rw-sql sync-path honest (v3-STRICT)** | 0 | ✅ | n/a | ✅ via mini_elle | **76 896 / 76 896 v3-strict pass, AVG MAJORITY=3.00 (=2f+1)** |
-| `20260512T073525..074110Z` | rw-sql sync-path 3 inject modes (v3-strict) | T13 | ✅ | n/a | n/a | **0 OK / 193 759 FAIL across 3 modes (100% reject)** |
-| `20260512T074436Z` | **rw-sql sync-path + 1 byz/shard (v3-strict)** | 1 byz | ✅ | n/a | ✅ | **79 218 / 79 218 verify under byz** |
-| `20260512T085327Z` | **rw-sql sync-path + 1 TWIN/shard (v3-strict, P7)** | 1 byz (equivocating) | ✅ | n/a | ✅ | **78 918 / 78 918 verify; 13 153 twin perturbations** |
-| `20260512T085940Z` | **rw-sql sync-path + 2 TWIN/shard (v3-strict, P7)** | 2 byz (== f+1) | ✅ | n/a | ✅ | **77 256 / 77 256 verify; 25 752 twin perturbations** |
-| `20260512T090324Z` | **rw-sql sync-path + 3 TWIN/shard (v3-strict, P7)** | 3 byz (50% byz) | ✅ | n/a | ✅ | **78 918 / 78 918 verify; 39 459 twin perturbations** |
+| `20260512T033704Z` | TPC-C 10w honest | 0 | [OK] | [OK] 227/227 | n/a | self-test |
+| `20260512T034016Z` | TPC-C 10w byz omission 1/shard | 1 | [OK] | [OK] 213/213 | n/a | self-test |
+| `20260512T034301Z` | TPC-C 10w byz crash 1/shard | 1 | [OK] | [OK] 224/224 | n/a | self-test |
+| `20260512T051713Z` | TPC-C 10w honest **with Elle** | 0 | [OK] | [OK] 221/221 | [OK] valid? true | self-test |
+| `20260512T052106Z` | TPC-C 10w byz omission 1 **with Elle** | 1 | [OK] | [OK] 39/39 | [OK] valid? true | self-test |
+| `20260512T053900Z` | TPC-C 10w byz drop_xshard 1/shard | 1 | [OK] | [OK] 240/240 | n/a | self-test |
+| `20260512T054224Z` | TPC-C 10w byz drop_xshard 2/shard | 2 (over f) | [OK] | [OK] 218/218 | n/a | self-test |
+| `20260512T054607Z` | TPC-C 10w byz drop_xshard 3/shard | 3 (over f) | [OK] | [OK] 233/233 | n/a | self-test |
+| `20260512T065024Z` | rw-sql NT=2 sync-path honest (v3-relaxed) | 0 | [OK] | n/a (single-shard) | [OK] via mini_elle | 87 852 / 87 852 v3 cert pass |
+| `20260512T065344..065923Z` | rw-sql sync-path 3 inject modes (v3-relaxed) | T13 | [OK] | n/a | n/a | 0 OK / 210 594 FAIL across 3 modes (100% reject) |
+| `20260512T073154Z` | **rw-sql sync-path honest (v3-STRICT)** | 0 | [OK] | n/a | [OK] via mini_elle | **76 896 / 76 896 v3-strict pass, AVG MAJORITY=3.00 (=2f+1)** |
+| `20260512T073525..074110Z` | rw-sql sync-path 3 inject modes (v3-strict) | T13 | [OK] | n/a | n/a | **0 OK / 193 759 FAIL across 3 modes (100% reject)** |
+| `20260512T074436Z` | **rw-sql sync-path + 1 byz/shard (v3-strict)** | 1 byz | [OK] | n/a | [OK] | **79 218 / 79 218 verify under byz** |
+| `20260512T085327Z` | **rw-sql sync-path + 1 TWIN/shard (v3-strict, P7)** | 1 byz (equivocating) | [OK] | n/a | [OK] | **78 918 / 78 918 verify; 13 153 twin perturbations** |
+| `20260512T085940Z` | **rw-sql sync-path + 2 TWIN/shard (v3-strict, P7)** | 2 byz (== f+1) | [OK] | n/a | [OK] | **77 256 / 77 256 verify; 25 752 twin perturbations** |
+| `20260512T090324Z` | **rw-sql sync-path + 3 TWIN/shard (v3-strict, P7)** | 3 byz (50% byz) | [OK] | n/a | [OK] | **78 918 / 78 918 verify; 39 459 twin perturbations** |
 
 ## What this proves — concrete safety claims now defensible
 

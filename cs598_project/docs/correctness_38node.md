@@ -30,15 +30,15 @@ shard 1) and PHANTOM_COMMIT (committed on a shard not in its writeset).
 
 | Run | f | byz | shards | tput | unique commits | single-shard | cross-shard | violations |
 |-----|--:|----|-------:|----:|--------------:|-------------:|------------:|----------:|
-| `T084918Z` (I1) | 1 | none | 2 | 440 | 27 282 | 26 089 | **1 193** | **0** ✅ |
-| `T092901Z` (J2) | 2 | none | 2 | 263 | 16 007 | 15 313 | **694** | **0** ✅ |
-| `T094210Z` (J2) | 3 | none | 2 | 277 | 17 261 | 16 433 | **828** | **0** ✅ |
-| `T110930Z` (M1) | 1 | 1 omission/shard | 2 | 279 | 16 763 | 16 001 | **762** | **0** ✅ |
-| `T111301Z` (M1) | 1 | 1 twin/shard | 2 | 336 | 20 931 | 19 970 | **961** | **0** ✅ |
-| `T111635Z` (M1) | 2 | 1 omission/shard | 2 | 259 | 16 142 | 15 414 | **728** | **0** ✅ |
-| `T112035Z` (M1) | 2 | 1 twin/shard | 2 | 194 | 11 776 | 11 265 | **511** | **0** ✅ |
-| `T112436Z` (M1) | 3 | 1 omission/shard | 2 | 173 | 10 833 | 10 342 | **491** | **0** ✅ |
-| `T112907Z` (M1) | 3 | 1 twin/shard | 2 | 181 | 10 997 | 10 483 | **514** | **0** ✅ |
+| `T084918Z` (I1) | 1 | none | 2 | 440 | 27 282 | 26 089 | **1 193** | **0** [OK] |
+| `T092901Z` (J2) | 2 | none | 2 | 263 | 16 007 | 15 313 | **694** | **0** [OK] |
+| `T094210Z` (J2) | 3 | none | 2 | 277 | 17 261 | 16 433 | **828** | **0** [OK] |
+| `T110930Z` (M1) | 1 | 1 omission/shard | 2 | 279 | 16 763 | 16 001 | **762** | **0** [OK] |
+| `T111301Z` (M1) | 1 | 1 twin/shard | 2 | 336 | 20 931 | 19 970 | **961** | **0** [OK] |
+| `T111635Z` (M1) | 2 | 1 omission/shard | 2 | 259 | 16 142 | 15 414 | **728** | **0** [OK] |
+| `T112035Z` (M1) | 2 | 1 twin/shard | 2 | 194 | 11 776 | 11 265 | **511** | **0** [OK] |
+| `T112436Z` (M1) | 3 | 1 omission/shard | 2 | 173 | 10 833 | 10 342 | **491** | **0** [OK] |
+| `T112907Z` (M1) | 3 | 1 twin/shard | 2 | 181 | 10 997 | 10 483 | **514** | **0** [OK] |
 
 **Total cross-shard txns audited: 6 682, all atomic. Zero PARTIAL_COMMIT
 or PHANTOM_COMMIT violations across f=1/2/3 with both omission and twin
@@ -59,15 +59,15 @@ Any excess would mean a real cert spuriously failed verification.
 
 | Run | f | mode | verifications | failed (=selftest) | twin perturbations | status |
 |-----|--:|------|--------------:|-------------------:|-------------------:|:-------|
-| `T084918Z` | 1 | honest | 104 464 | 12 | — | ✅ |
-| `T092901Z` | 2 | honest | 115 230 | 22 | — | ✅ |
-| `T094210Z` | 3 | honest | 175 503 | 32 | — | ✅ |
-| `T110930Z` | 1 | 1 omission | 63 731 | 12 | — | ✅ |
-| `T111301Z` | 1 | 1 twin | 78 173 | 12 | 13 030 | ✅ |
-| `T111635Z` | 2 | 1 omission | 111 524 | 22 | — | ✅ |
-| `T112035Z` | 2 | 1 twin | 82 695 | 22 | 7 512 | ✅ |
-| `T112436Z` | 3 | 1 omission | 112 427 | 32 | — | ✅ |
-| `T112907Z` | 3 | 1 twin | 111 758 | 32 | 6 965 | ✅ |
+| `T084918Z` | 1 | honest | 104 464 | 12 | — | [OK] |
+| `T092901Z` | 2 | honest | 115 230 | 22 | — | [OK] |
+| `T094210Z` | 3 | honest | 175 503 | 32 | — | [OK] |
+| `T110930Z` | 1 | 1 omission | 63 731 | 12 | — | [OK] |
+| `T111301Z` | 1 | 1 twin | 78 173 | 12 | 13 030 | [OK] |
+| `T111635Z` | 2 | 1 omission | 111 524 | 22 | — | [OK] |
+| `T112035Z` | 2 | 1 twin | 82 695 | 22 | 7 512 | [OK] |
+| `T112436Z` | 3 | 1 omission | 112 427 | 32 | — | [OK] |
+| `T112907Z` | 3 | 1 twin | 111 758 | 32 | 6 965 | [OK] |
 
 **Total ≈ 1.05 M v3-STRICT verifications under TPC-C + byzantine at
 f=1/2/3. Zero spurious accepts. The histogram-majority filter cleanly
@@ -111,18 +111,18 @@ L1 passes on all rw-sql H/J/K runs.
 
 | f | workload | byz | L1 | L2 | L4 | combined |
 |--:|----------|-----|----|----|----|----------|
-| 1 | rw-sql NC=6 | — | ✅ | n/a (no xshard) | ✅ | ✅ |
-| 2 | rw-sql NC=6 | — | ✅ | n/a | ✅ | ✅ |
-| 3 | rw-sql NC=6 | — | ✅ | n/a | ✅ | ✅ |
-| 1 | TPC-C NC=18 | — | ✅ | ✅ 1 193/1 193 | ✅ 104k | ✅ |
-| 2 | TPC-C NC=18 | — | ✅ | ✅ 694/694 | ✅ 115k | ✅ |
-| 3 | TPC-C NC=18 | — | ✅ | ✅ 828/828 | ✅ 176k | ✅ |
-| 1 | TPC-C NC=12 | 1 omission | ✅ | ✅ 762/762 | ✅ 64k | ✅ |
-| 1 | TPC-C NC=12 | 1 twin | ✅ | ✅ 961/961 | ✅ 78k | ✅ |
-| 2 | TPC-C NC=12 | 1 omission | ✅ | ✅ 728/728 | ✅ 112k | ✅ |
-| 2 | TPC-C NC=12 | 1 twin | ✅ | ✅ 511/511 | ✅ 83k | ✅ |
-| 3 | TPC-C NC=12 | 1 omission | ✅ | ✅ 491/491 | ✅ 112k | ✅ |
-| 3 | TPC-C NC=12 | 1 twin | ✅ | ✅ 514/514 | ✅ 112k | ✅ |
+| 1 | rw-sql NC=6 | — | [OK] | n/a (no xshard) | [OK] | [OK] |
+| 2 | rw-sql NC=6 | — | [OK] | n/a | [OK] | [OK] |
+| 3 | rw-sql NC=6 | — | [OK] | n/a | [OK] | [OK] |
+| 1 | TPC-C NC=18 | — | [OK] | [OK] 1 193/1 193 | [OK] 104k | [OK] |
+| 2 | TPC-C NC=18 | — | [OK] | [OK] 694/694 | [OK] 115k | [OK] |
+| 3 | TPC-C NC=18 | — | [OK] | [OK] 828/828 | [OK] 176k | [OK] |
+| 1 | TPC-C NC=12 | 1 omission | [OK] | [OK] 762/762 | [OK] 64k | [OK] |
+| 1 | TPC-C NC=12 | 1 twin | [OK] | [OK] 961/961 | [OK] 78k | [OK] |
+| 2 | TPC-C NC=12 | 1 omission | [OK] | [OK] 728/728 | [OK] 112k | [OK] |
+| 2 | TPC-C NC=12 | 1 twin | [OK] | [OK] 511/511 | [OK] 83k | [OK] |
+| 3 | TPC-C NC=12 | 1 omission | [OK] | [OK] 491/491 | [OK] 112k | [OK] |
+| 3 | TPC-C NC=12 | 1 twin | [OK] | [OK] 514/514 | [OK] 112k | [OK] |
 
 All 12 cells pass simultaneously across L1, L2, and L4 verification.
 

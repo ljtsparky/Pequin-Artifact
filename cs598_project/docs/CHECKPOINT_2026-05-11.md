@@ -3,7 +3,7 @@
 > Hand-off snapshot for resuming on another machine.
 > **Latest pushed commit:** `5dd95967` (SS-CERT v2.3 + T13 adversarial flag)
 
-## Headline: SS-CERT end-to-end LIVE 🎉
+## Headline: SS-CERT end-to-end LIVE 
 
 After 7 commits of debugging (v0 → v2.3) the SS-CERT path runs at full
 speed and discriminates correctly between honest and malicious certs.
@@ -86,7 +86,7 @@ The full debugging trail (each version's diagnosis → fix) lives in
 
 ## Todo (in priority order)
 
-### Tier 1 — DONE ✅
+### Tier 1 — DONE [OK]
 
 ### Tier 2 — TPC-C Adya cycle check
 - TPC-C currently has no Elle history hooks. Mapping TPC-C SQL to rw-register

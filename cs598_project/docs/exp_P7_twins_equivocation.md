@@ -53,9 +53,9 @@ Predicted outcomes:
 
 | Run | BYZ/shard | byz_twin_perturbations | ss_cert_verifications_done | ss_cert_verifications_failed | client_cert_v3_built | avg majority |
 |-----|----------|------------------------:|----------------------------:|------------------------------:|----------------------:|--------------:|
-| `20260512T085327Z` | 1 | 13 153 | 78 918 / 78 918 ✅ | 12 (self-test neg-ctrl only) | 4 | 2.00 |
-| `20260512T085940Z` | 2 (f+1) | 25 752 | 77 256 / 77 256 ✅ | 12 (self-test neg-ctrl only) | 2 | 2.00 |
-| `20260512T090324Z` | 3 (50% byz) | 39 459 | 78 918 / 78 918 ✅ | 12 (self-test neg-ctrl only) | 2 | 2.00 |
+| `20260512T085327Z` | 1 | 13 153 | 78 918 / 78 918 [OK] | 12 (self-test neg-ctrl only) | 4 | 2.00 |
+| `20260512T085940Z` | 2 (f+1) | 25 752 | 77 256 / 77 256 [OK] | 12 (self-test neg-ctrl only) | 2 | 2.00 |
+| `20260512T090324Z` | 3 (50% byz) | 39 459 | 78 918 / 78 918 [OK] | 12 (self-test neg-ctrl only) | 2 | 2.00 |
 
 Twin perturbation count scales linearly (1× = 13k, 2× = 26k, 3× = 39k) —
 confirms twins are actively equivocating.

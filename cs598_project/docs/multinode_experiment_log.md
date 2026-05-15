@@ -170,7 +170,7 @@ harness there.
 
 ---
 
-## Run 8 — 2026-05-05 01:55:22Z (✅ **SUCCESS — 982 commits in 30s**)
+## Run 8 — 2026-05-05 01:55:22Z ([OK] **SUCCESS — 982 commits in 30s**)
 
 **Pivot worked.** Switched from `BENCHMARK=rw` to `BENCHMARK=rw-sql` and
 discovered the magic file-name trigger: if `--data_file_path` ends in
@@ -246,17 +246,17 @@ below the workload layer:
 
 | Component | Status |
 |-----------|--------|
-| 18-node SSH from this VM (CloudLab portal key) | ✅ |
-| Inter-node SSH (geni-get + authorized_keys, NFS-shared) | ✅ |
-| `setup_18_nodes.sh` env + binary verification | ✅ 18/18 |
-| Cross-shard `keys/` synchronisation (258 files identical) | ✅ |
-| TBB / JVM env loaded correctly per process | ✅ |
-| `shard.config` generation + distribution | ✅ |
-| `store/server` startup on all 12 server nodes | ✅ (12/12 reach `Threadpool running`) |
-| Server BFT init phase (Membership cert, group routing) | ✅ (no crashes in init) |
-| Client connection + quorum config | ✅ (logs print correct quorum sizes) |
-| Byzantine fault flag plumbing (`--simulate_inconsistency`) | ✅ (BYZ tag printed for replicas 5 in each shard) |
-| Byzantine client flag plumbing (`--inject_failure_proportion`) | ✅ (BYZ client launched) |
+| 18-node SSH from this VM (CloudLab portal key) | [OK] |
+| Inter-node SSH (geni-get + authorized_keys, NFS-shared) | [OK] |
+| `setup_18_nodes.sh` env + binary verification | [OK] 18/18 |
+| Cross-shard `keys/` synchronisation (258 files identical) | [OK] |
+| TBB / JVM env loaded correctly per process | [OK] |
+| `shard.config` generation + distribution | [OK] |
+| `store/server` startup on all 12 server nodes | [OK] (12/12 reach `Threadpool running`) |
+| Server BFT init phase (Membership cert, group routing) | [OK] (no crashes in init) |
+| Client connection + quorum config | [OK] (logs print correct quorum sizes) |
+| Byzantine fault flag plumbing (`--simulate_inconsistency`) | [OK] (BYZ tag printed for replicas 5 in each shard) |
+| Byzantine client flag plumbing (`--inject_failure_proportion`) | [OK] (BYZ client launched) |
 
 **The infrastructure work is done.** What's blocking real measurement is
 purely the *workload choice* and that's solvable by switching to Pesto's

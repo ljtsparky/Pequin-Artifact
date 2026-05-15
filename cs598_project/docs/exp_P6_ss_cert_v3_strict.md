@@ -84,7 +84,7 @@ for transaction commits — now extended to query-result attestation.
 | Iter | Symptom | Root cause | Fix |
 |------|---------|-----------|-----|
 | v3-strict (initial) | `client_cert_v3_built = 0` despite `query-all` setting | `pendingQuery->done` returns early after 2 results; later replies dropped | move harvest above done check (P3.5, `ec177eb8`) |
-| v3-strict (after P3.5) | AVG MAJORITY = 3.00 ✓, `client_cert_v3_built = 6` ✓, **`verifications_done = 76 896` (100% pass)** | — | — |
+| v3-strict (after P3.5) | AVG MAJORITY = 3.00 [ok], `client_cert_v3_built = 6` [ok], **`verifications_done = 76 896` (100% pass)** | — | — |
 
 ## Compare v3-relaxed vs v3-strict
 
@@ -94,9 +94,9 @@ for transaction commits — now extended to query-result attestation.
 | Safety claim | "≥ 1 honest replica attested" | **"≥ f+1 honest replicas attested"** |
 | `--pequin_query_messages` needed | default (2f+1) | **`query-all` (n)** |
 | Throughput impact | minimal | ~3-5% (more replicas reply) |
-| Verifies honest cert | ✅ 100% | ✅ 100% |
-| Rejects T13 adversarial | ✅ all 3 modes 100% | ✅ all 3 modes 100% |
-| Holds under byz | ✅ | ✅ |
+| Verifies honest cert | [OK] 100% | [OK] 100% |
+| Rejects T13 adversarial | [OK] all 3 modes 100% | [OK] all 3 modes 100% |
+| Holds under byz | [OK] | [OK] |
 
 ## Files / commits
 
