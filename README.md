@@ -6,8 +6,10 @@
 > Certs + content-bound SS-CERT v3-STRICT). All our changes live on the
 > **`cross-shard-membership` branch**. See
 > [`cs598_project/README.md`](cs598_project/README.md) for the project
-> description, orchestration scripts, ~250 experiment outputs, and the
-> final report. The original Pesto README follows.
+> description, orchestration scripts, and analysis tools. The course
+> report PDF and per-experiment writeups are submitted separately
+> through the course submission system. The original Pesto README
+> follows.
 
 ---
 
